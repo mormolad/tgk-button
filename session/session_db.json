@@ -1,0 +1,29 @@
+{
+  "sessions": [
+    {
+      "id": "369459962:369459962",
+      "data": {
+        "__scenes": {
+          "current": "TOUR_QUESTIONNAIRE",
+          "state": {
+            "city": "Начать опрос ▶️",
+            "destination": "лала",
+            "travelPeriod": "Июль-Август ☀️",
+            "nights": "7-10 ночей",
+            "childrenInfo": "/start",
+            "tourType": "Пляжный 🏖️",
+            "accommodation": "Всё включено 🍹",
+            "budget": "Всё включено 🍹"
+          },
+          "cursor": 12
+        }
+      }
+    },
+    {
+      "id": "565210224:565210224",
+      "data": {
+        "__scenes": {}
+      }
+    }
+  ]
+}
