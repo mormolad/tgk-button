@@ -1,3 +1,4 @@
+const { Markup } = require('telegraf');
 module.exports = async(ctx) => {
     ctx.wizard.state.companions = ctx.message.text;
 

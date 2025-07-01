@@ -1,4 +1,5 @@
-module.exports = async(ctx) => {
+
+const { Markup } = require('telegraf');module.exports = async(ctx) => {
     if (!ctx.message) {
         await ctx.reply('Как к вам обращаться?');
         return ctx.wizard.next();

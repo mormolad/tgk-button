@@ -7,15 +7,11 @@
           "current": "TOUR_QUESTIONNAIRE",
           "state": {
             "city": "Начать опрос ▶️",
-            "destination": "лала",
-            "travelPeriod": "Июль-Август ☀️",
-            "nights": "7-10 ночей",
-            "childrenInfo": "/start",
-            "tourType": "Пляжный 🏖️",
-            "accommodation": "Всё включено 🍹",
-            "budget": "Всё включено 🍹"
+            "destination": "Начать опрос ▶️",
+            "travelPeriod": "Конкретные даты",
+            "departureDate": "павып"
           },
-          "cursor": 12
+          "cursor": 5
         }
       }
     },

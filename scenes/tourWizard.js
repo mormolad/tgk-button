@@ -14,23 +14,23 @@ const askAccommodation = require('../steps/askAccommodation');
 const askBudget = require('../steps/askBudget');
 const askName = require('../steps/askName');
 const askPhone = require('../steps/askPhone');
-
+    
 const tourQuestionnaire = new Scenes.WizardScene(
-    'TOUR_QUESTIONNAIRE',
-    greeting,
-    askCity,
-    askTravelPeriod,
-    askTravelDatesDetails,
-    askDepartureDate,
-    askReturnDate,
-    askNights,
-    askCompanions,
-    askChildrenInfo,
-    askTourType,
-    askAccommodation,
-    askBudget,
-    askName,
-    askPhone
+  'TOUR_QUESTIONNAIRE',
+  greeting,
+  askCity,
+  askTravelPeriod,
+  askTravelDatesDetails,
+  askDepartureDate,
+  askReturnDate,
+  askNights,
+  askCompanions,
+  askChildrenInfo,
+  askTourType,
+  askAccommodation,
+  askBudget,
+  askName,
+  askPhone
 );
 
 module.exports = tourQuestionnaire;

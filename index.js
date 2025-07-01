@@ -1,37 +1,51 @@
 require('dotenv').config();
 const { Telegraf, Scenes } = require('telegraf');
-const LocalSession = require('telegraf-session-local');
-const tourWizard = require('./scenes/tourWizard');
+const sessionMiddleware = require('./middlewares/session');
 const logger = require('./utils/logger');
+const scenes = require('./scenes');
 
 const { TELEGRAM_BOT_TOKEN } = process.env;
 
 if (!TELEGRAM_BOT_TOKEN) {
-    logger.error('TELEGRAM_BOT_TOKEN не указан в .env');
-    process.exit(1);
+  logger.error('TELEGRAM_BOT_TOKEN не указан в .env');
+  process.exit(1);
 }
 
 logger.log('[SYSTEM] Запуск бота...');
 
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
-// ✅ Используем только LocalSession (без telegraf.session())
-const localSession = new LocalSession({
-    database: 'session/session_db.json',
-});
-bot.use(localSession.middleware());
+// Middleware для сессий
+bot.use(sessionMiddleware);
 
-const stage = new Scenes.Stage([tourWizard]);
+// Stage со всеми сценами
+const stage = new Scenes.Stage(scenes);
 bot.use(stage.middleware());
 
-// Запуск сцены
+// Стартовая команда
 bot.command('start', (ctx) => ctx.scene.enter('TOUR_QUESTIONNAIRE'));
 
+// Глобальная обработка ошибок
+bot.catch((err, ctx) => {
+  logger.error(`[ERROR] Ошибка в апдейте: ${err.message}`, err);
+});
+
+// Запуск
 bot
-    .launch()
-    .then(() => {
-        logger.log('[SYSTEM] Бот запущен ✅');
-    })
-    .catch((err) => {
-        logger.error('[SYSTEM] Ошибка запуска бота:', err);
-    });
+  .launch()
+  .then(() => {
+    logger.log('[SYSTEM] Бот запущен ✅');
+  })
+  .catch((err) => {
+    logger.error('[SYSTEM] Ошибка запуска бота:', err);
+  });
+
+// Корректное завершение
+process.once('SIGINT', () => {
+  logger.log('[SYSTEM] Остановка бота (SIGINT) ❌');
+  bot.stop('SIGINT');
+});
+process.once('SIGTERM', () => {
+  logger.log('[SYSTEM] Остановка бота (SIGTERM) ❌');
+  bot.stop('SIGTERM');
+});
