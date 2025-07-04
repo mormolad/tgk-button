@@ -1,13 +1,14 @@
+// Настройка логгера
 const logger = {
-    log: (msg, src = 'SYSTEM') => {
-        const ts = new Date().toISOString();
-        console.log(`[${ts}] [${src}] ${msg}`);
-    },
-    error: (msg, src = 'SYSTEM', err = null) => {
-        const ts = new Date().toISOString();
-        console.error(`[${ts}] [${src}] ❌ ${msg}`);
-        if (err) console.error(err.stack || err);
-    },
+  log: (message, source = 'SYSTEM') => {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] [${source}] ${message}`);
+  },
+  error: (message, source = 'SYSTEM', error = null) => {
+    const timestamp = new Date().toISOString();
+    console.error(`[${timestamp}] [${source}] ❌ ${message}`);
+    if (error) console.error(error.stack || error);
+  },
 };
 
 module.exports = logger;

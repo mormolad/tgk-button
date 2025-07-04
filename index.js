@@ -1,51 +1,72 @@
 require('dotenv').config();
-const { Telegraf, Scenes } = require('telegraf');
-const sessionMiddleware = require('./middlewares/session');
+const { Telegraf, Scenes, Markup, session } = require('telegraf');
+const { Stage } = Scenes;
+const LocalSession = require('telegraf-session-local');
+const { tourQuestionnaire } = require('./scenes/tourWizard');
 const logger = require('./utils/logger');
-const scenes = require('./scenes');
 
-const { TELEGRAM_BOT_TOKEN } = process.env;
+// Инициализация бота
+const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
-if (!TELEGRAM_BOT_TOKEN) {
-  logger.error('TELEGRAM_BOT_TOKEN не указан в .env');
+logger.log('Запуск бота...');
+
+// Проверка критических переменных окружения
+if (!process.env.TELEGRAM_BOT_TOKEN) {
+  logger.error('Токен бота не указан в .env');
+  process.exit(1);
+}
+if (!process.env.ADMIN_CHAT_ID) {
+  logger.error('ADMIN_CHAT_ID не указан в .env');
   process.exit(1);
 }
 
-logger.log('[SYSTEM] Запуск бота...');
+// Настройка локального хранилища сессий
+const localSession = new LocalSession({ database: 'session_db.json' });
+bot.use(localSession.middleware());
 
-const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
-
-// Middleware для сессий
-bot.use(sessionMiddleware);
-
-// Stage со всеми сценами
-const stage = new Scenes.Stage(scenes);
+// Настройка сцен
+const stage = new Stage([tourQuestionnaire]);
 bot.use(stage.middleware());
 
-// Стартовая команда
-bot.command('start', (ctx) => ctx.scene.enter('TOUR_QUESTIONNAIRE'));
-
-// Глобальная обработка ошибок
-bot.catch((err, ctx) => {
-  logger.error(`[ERROR] Ошибка в апдейте: ${err.message}`, err);
+// Команда старта
+bot.start((ctx) => {
+  logger.log(`Пользователь ${ctx.from.id} запустил бота`, 'USER');
+  return ctx.scene.enter('TOUR_QUESTIONNAIRE');
 });
 
-// Запуск
-bot
-  .launch()
-  .then(() => {
-    logger.log('[SYSTEM] Бот запущен ✅');
-  })
-  .catch((err) => {
-    logger.error('[SYSTEM] Ошибка запуска бота:', err);
-  });
+// Команда запуска опросника
+bot.command('tour', (ctx) => ctx.scene.enter('TOUR_QUESTIONNAIRE'));
 
-// Корректное завершение
-process.once('SIGINT', () => {
-  logger.log('[SYSTEM] Остановка бота (SIGINT) ❌');
-  bot.stop('SIGINT');
+// Команда сброса опроса
+bot.command('reset', async (ctx) => {
+  // Выходим из текущей сцены
+  if (ctx.scene.current) {
+    await ctx.scene.leave();
+  }
+
+  // Очищаем состояние
+  ctx.session = {};
+
+  // Запускаем сцену заново
+  await ctx.reply('Опрос сброшен. Начинаем заново!', Markup.removeKeyboard());
+  return ctx.scene.enter('TOUR_QUESTIONNAIRE');
 });
-process.once('SIGTERM', () => {
-  logger.log('[SYSTEM] Остановка бота (SIGTERM) ❌');
-  bot.stop('SIGTERM');
+
+// Обработчик текстовых сообщений (на случай, если пользователь заблудился)
+bot.on('text', (ctx) => {
+  if (!ctx.scene.current) {
+    ctx.reply(
+      'Для подбора тура нажмите /start или /tour',
+      Markup.keyboard([['/start']]).resize()
+    );
+  }
 });
+
+// Запуск бота
+bot.launch().then(() => {
+  logger.log('Бот успешно запущен');
+});
+
+// Обработка завершения работы
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
