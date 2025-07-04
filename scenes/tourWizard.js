@@ -34,8 +34,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
 
   // Шаг 2: Проверка нажатия кнопки
   async (ctx) => {
-    logStep(ctx, '2 - Проверка кнопки');
-
     if (ctx.message.text !== 'Начать опрос ▶️') {
       await ctx.reply(
         'Пожалуйста, нажмите кнопку "Начать опрос ▶️" для продолжения',
@@ -53,7 +51,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
 
   // Шаг 3: Направление
   async (ctx) => {
-    logStep(ctx, '3 - Город вылета');
     ctx.wizard.state.city = ctx.message.text;
     await ctx.reply('Куда хотите поехать? 🌍 (Страна, курорт или "море/горы")');
     return ctx.wizard.next();
@@ -61,14 +58,13 @@ const tourQuestionnaire = new Scenes.WizardScene(
 
   // Шаг 4: Даты
   async (ctx) => {
-    logStep(ctx, '4 - Направление');
     ctx.wizard.state.destination = ctx.message.text;
 
     // Сохраняем клавиатуру в состоянии для повторного использования
     ctx.wizard.state.dateKeyboard = Markup.keyboard([
+      ['Конкретные даты'],
       ['Июль-Август ☀️', 'Сентябрь-Октябрь 🍂'],
       ['Ноябрь-Март ❄️', 'Апрель-Июнь 🌸'],
-      ['Конкретные даты'],
     ])
       .oneTime()
       .resize();
