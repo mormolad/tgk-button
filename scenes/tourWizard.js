@@ -18,13 +18,13 @@ const logStep = (ctx, stepName) => {
 const tourQuestionnaire = new Scenes.WizardScene(
   'TOUR_QUESTIONNAIRE',
 
-  // Шаг 1: Приветствие и начало
+  // Шаг 0: Приветствие
   async (ctx) => {
-    logStep(ctx, '1 - Приветствие');
+    logStep(ctx, '0 - Приветствие');
     await ctx.reply(
       `Привет, ${
         ctx.from.first_name || 'путешественник'
-      }! 👋\nЯ твой персональный помощник. Ответь на несколько вопросов, и я найду идеальный вариант для тебя!`,
+      }! 👋\nЯ помогу подобрать идеальный тур! Ответь на несколько вопросов:`,
       Markup.keyboard([['Начать опрос ▶️']])
         .resize()
         .oneTime()
@@ -32,11 +32,11 @@ const tourQuestionnaire = new Scenes.WizardScene(
     return ctx.wizard.next();
   },
 
-  // Шаг 2: Проверка нажатия кнопки
+  // Шаг 1: Проверка старта
   async (ctx) => {
     if (ctx.message.text !== 'Начать опрос ▶️') {
       await ctx.reply(
-        'Пожалуйста, нажмите кнопку "Начать опрос ▶️" для продолжения',
+        'Пожалуйста, нажмите кнопку "Начать опрос ▶️"',
         Markup.keyboard([['Начать опрос ▶️']])
           .resize()
           .oneTime()
@@ -45,276 +45,270 @@ const tourQuestionnaire = new Scenes.WizardScene(
     }
 
     await ctx.reply('Отлично! Приступаем к опросу.', Markup.removeKeyboard());
-    await ctx.reply('Из какого города планируете вылет? 🏙️');
+    await ctx.reply('1/11: Из какого города вылетаете? 🏙️');
     return ctx.wizard.next();
   },
 
-  // Шаг 3: Направление
+  // Шаг 2: Город вылета
   async (ctx) => {
-    ctx.wizard.state.city = ctx.message.text;
-    await ctx.reply('Куда хотите поехать? 🌍 (Страна, курорт или "море/горы")');
+    logStep(ctx, '1 - Город вылета');
+    ctx.wizard.state.departureCity = ctx.message.text;
+    await ctx.reply('2/11: В какую страну хотите поехать? 🌍');
     return ctx.wizard.next();
   },
 
-  // Шаг 4: Даты
+  // Шаг 3: Страна отдыха
   async (ctx) => {
-    ctx.wizard.state.destination = ctx.message.text;
-
-    // Сохраняем клавиатуру в состоянии для повторного использования
-    ctx.wizard.state.dateKeyboard = Markup.keyboard([
-      ['Конкретные даты'],
-      ['Июль-Август ☀️', 'Сентябрь-Октябрь 🍂'],
-      ['Ноябрь-Март ❄️', 'Апрель-Июнь 🌸'],
-    ])
-      .oneTime()
-      .resize();
-
+    logStep(ctx, '2 - Страна отдыха');
+    ctx.wizard.state.destinationCountry = ctx.message.text;
     await ctx.reply(
-      'Когда планируете путешествие? 📅',
-      ctx.wizard.state.dateKeyboard
+      '3/11: 📅 Укажите дату вылета (формат ДД.ММ.ГГГГ):\nПример: 15.08.2024'
     );
     return ctx.wizard.next();
   },
 
-  // Шаг 5: Обработка выбора дат
+  // Шаг 4: Дата вылета (валидация)
   async (ctx) => {
-    logStep(ctx, '5 - Период путешествия');
+    logStep(ctx, '3 - Дата вылета');
+    const input = ctx.message.text;
 
-    // Проверяем, выбран ли один из периодов
-    const periods = [
-      'Июль-Август ☀️',
-      'Сентябрь-Октябрь 🍂',
-      'Ноябрь-Март ❄️',
-      'Апрель-Июнь 🌸',
-    ];
-
-    if (periods.includes(ctx.message.text)) {
-      // Сохраняем выбранный период
-      ctx.wizard.state.travelPeriod = ctx.message.text;
-
-      // Переходим к вопросу о количестве ночей
+    // Валидация даты
+    if (!/^\d{2}\.\d{2}\.\d{4}$/.test(input)) {
       await ctx.reply(
-        `Выбрано: ${ctx.message.text}\n\nНа сколько ночей планируете? 🌙`,
-        Markup.keyboard([
-          ['7-10 ночей', '10-14 ночей'],
-          ['2 недели+', 'Короткий тур (3-5 ночей)'],
-        ])
-          .oneTime()
-          .resize()
+        '❌ Неверный формат. Используйте ДД.ММ.ГГГГ:\nПример: 20.07.2024'
       );
-      return ctx.wizard.selectStep(7); // Переход к шагу 7 (количество ночей)
-    }
-
-    // Обработка конкретных дат
-    if (ctx.message.text === 'Конкретные даты') {
-      await ctx.reply('Введите дату вылета (ДД.ММ.ГГГГ):');
-      return ctx.wizard.next();
-    }
-
-    // Если ввод не распознан
-    await ctx.reply(
-      'Пожалуйста, выберите один из предложенных вариантов:',
-      ctx.wizard.state.dateKeyboard
-    );
-    return; // Остаемся на текущем шаге
-  },
-
-  // Шаг 6: Обработка конкретных дат
-  async (ctx) => {
-    logStep(ctx, '6 - Конкретные даты (вылет)');
-
-    if (!/\d{2}\.\d{2}\.\d{4}/.test(ctx.message.text)) {
-      await ctx.reply('Пожалуйста, введите дату в формате ДД.ММ.ГГГГ');
       return;
     }
 
-    ctx.wizard.state.departureDate = ctx.message.text;
-    await ctx.reply('Введите дату возвращения (ДД.ММ.ГГГГ):');
+    const [day, month, year] = input.split('.').map(Number);
+    const date = new Date(year, month - 1, day);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (isNaN(date) || date < today) {
+      await ctx.reply('❌ Некорректная дата. Введите будущую дату:');
+      return;
+    }
+
+    ctx.wizard.state.departureDate = input;
+    await ctx.reply('4/11: Сколько ночей планируете отдыхать? 🌙');
     return ctx.wizard.next();
   },
 
-  // Шаг 7: Количество ночей (объединенный шаг)
+  // Шаг 5: Количество ночей
   async (ctx) => {
-    logStep(ctx, '7 - Количество ночей');
+    logStep(ctx, '4 - Количество ночей');
+    const nights = parseInt(ctx.message.text);
 
-    // Если пришли из обработки конкретных дат
-    if (ctx.wizard.state.departureDate) {
-      // Валидация даты возвращения
-      if (!/\d{2}\.\d{2}\.\d{4}/.test(ctx.message.text)) {
-        await ctx.reply('Пожалуйста, введите дату в формате ДД.ММ.ГГГГ');
+    if (isNaN(nights) || nights < 1 || nights > 365) {
+      await ctx.reply('❌ Введите корректное число (от 1 до 365):');
+      return;
+    }
+
+    ctx.wizard.state.nights = nights;
+    await ctx.reply('5/11: Укажите количество взрослых:');
+    return ctx.wizard.next();
+  },
+
+  // Шаг 6: Количество взрослых
+  async (ctx) => {
+    logStep(ctx, '5 - Взрослые');
+    const adults = parseInt(ctx.message.text);
+
+    if (isNaN(adults) || adults < 1 || adults > 20) {
+      await ctx.reply('❌ Введите число от 1 до 20:');
+      return;
+    }
+
+    ctx.wizard.state.adults = adults;
+
+    // Кнопки для детей
+    await ctx.reply(
+      '6/11: Сколько будет детей?',
+      Markup.keyboard([
+        ['0', '1', '2'],
+        ['3', 'Нет детей'],
+      ])
+        .resize()
+        .oneTime()
+    );
+    return ctx.wizard.next();
+  },
+
+  // Шаг 7: Количество детей
+  async (ctx) => {
+    logStep(ctx, '6 - Дети');
+    if (ctx.message.text === 'Нет детей') {
+      ctx.wizard.state.children = 0;
+    } else {
+      const children = parseInt(ctx.message.text);
+      if (isNaN(children) || children < 0 || children > 10) {
+        await ctx.reply('❌ Выберите вариант из кнопок:');
         return;
       }
-      ctx.wizard.state.returnDate = ctx.message.text;
+      ctx.wizard.state.children = children;
+    }
 
-      // Рассчитываем количество ночей
-      const start = new Date(
-        ctx.wizard.state.departureDate.split('.').reverse().join('-')
-      );
-      const end = new Date(ctx.message.text.split('.').reverse().join('-'));
-      const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-      ctx.wizard.state.nights = `${nights} ночей`;
+    // Кнопки для звезд отеля
+    await ctx.reply(
+      '7/11: Выберите класс отеля:',
+      Markup.keyboard([
+        ['3 ★', '4 ★'],
+        ['5 ★', 'Любой'],
+      ])
+        .resize()
+        .oneTime()
+    );
+    return ctx.wizard.next();
+  },
 
+  // Шаг 8: Класс отеля
+  async (ctx) => {
+    logStep(ctx, '7 - Класс отеля');
+    const validOptions = ['3 ★', '4 ★', '5 ★', 'Любой'];
+
+    if (!validOptions.includes(ctx.message.text)) {
+      await ctx.reply('❌ Выберите вариант из кнопок:');
+      return;
+    }
+
+    ctx.wizard.state.hotelClass = ctx.message.text;
+
+    // Кнопки для типа отеля
+    await ctx.reply(
+      '8/11: Выберите тип размещения:',
+      Markup.keyboard([
+        ['Отель', 'Пансионат', 'Гостевой дом'],
+        ['Апартаменты', 'Вилла', 'Хостел'],
+        ['Любой'],
+      ])
+        .resize()
+        .oneTime()
+    );
+    return ctx.wizard.next();
+  },
+
+  // Шаг 9: Тип отеля
+  async (ctx) => {
+    logStep(ctx, '8 - Тип отеля');
+    const validTypes = [
+      'Отель',
+      'Пансионат',
+      'Гостевой дом',
+      'Апартаменты',
+      'Вилла',
+      'Хостел',
+      'Любой',
+    ];
+
+    if (!validTypes.includes(ctx.message.text)) {
+      await ctx.reply('❌ Выберите вариант из кнопок:');
+      return;
+    }
+
+    ctx.wizard.state.hotelType = ctx.message.text;
+
+    // Кнопки для питания
+    await ctx.reply(
+      '9/11: Выберите тип питания:',
+      Markup.keyboard([
+        ['Только завтрак', 'Завтрак и ужин'],
+        ['Полный пансион', 'Всё включено'],
+        ['Ультра всё включено'],
+      ])
+        .resize()
+        .oneTime()
+    );
+    return ctx.wizard.next();
+  },
+
+  // Шаг 10: Тип питания
+  async (ctx) => {
+    logStep(ctx, '9 - Тип питания');
+    const validMeals = [
+      'Только завтрак',
+      'Завтрак и ужин',
+      'Полный пансион',
+      'Всё включено',
+      'Ультра всё включено',
+    ];
+
+    if (!validMeals.includes(ctx.message.text)) {
+      await ctx.reply('❌ Выберите вариант из кнопок:');
+      return;
+    }
+
+    ctx.wizard.state.mealType = ctx.message.text;
+
+    // Кнопки для рейтинга
+    await ctx.reply(
+      '10/11: Минимальный рейтинг отеля:',
+      Markup.keyboard([
+        ['3.0+', '3.5+'],
+        ['4.0+', '4.5+'],
+      ])
+        .resize()
+        .oneTime()
+    );
+    return ctx.wizard.next();
+  },
+
+  // Шаг 11: Рейтинг отеля
+  async (ctx) => {
+    logStep(ctx, '10 - Рейтинг');
+    const validRatings = ['3.0+', '3.5+', '4.0+', '4.5+'];
+
+    if (!validRatings.includes(ctx.message.text)) {
+      await ctx.reply('❌ Выберите вариант из кнопок:');
+      return;
+    }
+
+    ctx.wizard.state.hotelRating = ctx.message.text;
+    await ctx.reply(
+      '11/11: Укажите бюджет в рублях (формат: "от ДО"):\nПример: от 50000 до 150000'
+    );
+    return ctx.wizard.next();
+  },
+
+  // Шаг 12: Бюджет
+  async (ctx) => {
+    logStep(ctx, '11 - Бюджет');
+    const budgetRegex = /^от\s*(\d+)\s*до\s*(\d+)$/i;
+    const match = ctx.message.text.match(budgetRegex);
+
+    if (!match) {
       await ctx.reply(
-        `Период путешествия: ${nights} ночей\n\nС кем путешествуете? 👨‍👩‍👧‍👦`,
-        Markup.keyboard([
-          ['Один/одна', 'Пара/Вдвоём'],
-          ['С детьми 👶', 'С друзьями'],
-          ['Семья (взрослые)', 'Группа (6+ человек)'],
-        ])
-          .oneTime()
-          .resize()
+        '❌ Используйте формат: "от ДО"\nПример: от 50000 до 150000'
       );
-      return ctx.wizard.next();
+      return;
     }
 
-    // Если пришли из выбора периода
-    ctx.wizard.state.nights = ctx.message.text;
-    await ctx.reply(
-      `На сколько ночей: ${ctx.message.text}\n\nС кем путешествуете? 👨‍👩‍👧‍👦`,
-      Markup.keyboard([
-        ['Один/одна', 'Пара/Вдвоём'],
-        ['С детьми 👶', 'С друзьями'],
-        ['Семья (взрослые)', 'Группа (6+ человек)'],
-      ])
-        .oneTime()
-        .resize()
-    );
-    return ctx.wizard.next();
-  },
+    const min = parseInt(match[1]);
+    const max = parseInt(match[2]);
 
-  // Шаг 8: Количество ночей (обработка)
-  async (ctx) => {
-    logStep(ctx, '8 - Количество ночей');
-    ctx.wizard.state.nights = ctx.message.text;
-
-    await ctx.reply(
-      'С кем путешествуете? 👨‍👩‍👧‍👦',
-      Markup.keyboard([
-        ['Один/одна', 'Пара/Вдвоём'],
-        ['С детьми 👶', 'С друзьями'],
-        ['Семья (взрослые)', 'Группа (6+ человек)'],
-      ])
-        .oneTime()
-        .resize()
-    );
-    return ctx.wizard.next();
-  },
-
-  // Шаг 9: Детали группы
-  async (ctx) => {
-    logStep(ctx, '9 - Состав группы');
-    ctx.wizard.state.companions = ctx.message.text;
-
-    if (
-      ctx.message.text.includes('детьми') ||
-      ctx.message.text.includes('Группа')
-    ) {
+    if (min > max || min < 0 || max < 0) {
       await ctx.reply(
-        'Сколько будет детей и их возраст? (Пример: 1 ребёнок 5 лет, 2 ребёнка 8 и 10 лет)'
+        '❌ Некорректный диапазон. Минимум должен быть меньше максимума'
       );
-      return ctx.wizard.next();
+      return;
     }
 
-    await ctx.reply(
-      'Какое размещение предпочитаете? 🏨',
-      Markup.keyboard([
-        ['Всё включено 🍹', 'Только завтраки ☕'],
-        ['Апартаменты 🏠', 'Бутик-отель'],
-        ['Не важно'],
-      ])
-        .oneTime()
-        .resize()
-    );
-    return ctx.wizard.selectStep(12);
-  },
+    ctx.wizard.state.budget = { min, max };
 
-  // Шаг 10: Информация о детях
-  async (ctx) => {
-    logStep(ctx, '10 - Информация о детях');
-    ctx.wizard.state.childrenInfo = ctx.message.text;
-
-    await ctx.reply(
-      'Какое размещение предпочитаете? 🏨',
-      Markup.keyboard([
-        ['Всё включено 🍹', 'Только завтраки ☕'],
-        ['Апартаменты 🏠', 'Бутик-отель'],
-        ['Не важно'],
-      ])
-        .oneTime()
-        .resize()
-    );
-    return ctx.wizard.next();
-  },
-
-  // Шаг 12: Размещение
-  async (ctx) => {
-    logStep(ctx, '12 - Бюджет');
-    ctx.wizard.state.accommodation = ctx.message.text;
-
-    await ctx.reply(
-      'Укажите бюджет на человека:',
-      Markup.keyboard([
-        ['До 50 000 ₽', '50 000 - 100 000 ₽'],
-        ['100 000 - 200 000 ₽', '200 000+ ₽'],
-      ])
-        .oneTime()
-        .resize()
-    );
-    return ctx.wizard.next();
-  },
-
-  // Шаг 13: Бюджет
-  async (ctx) => {
-    logStep(ctx, '13 - Бюджет');
-    ctx.wizard.state.budget = ctx.message.text;
-
-    await ctx.reply('Как к вам обращаться?');
-    return ctx.wizard.next();
-  },
-
-  // Шаг 14: Контакты
-  async (ctx) => {
-    logStep(ctx, '14 - Имя пользователя');
-    ctx.wizard.state.name = ctx.message.text;
-
-    const contactKeyboard = Markup.keyboard([
-      [Markup.button.contactRequest('📞 Отправить телефон')],
-      ['Пропустить'],
-    ]).resize();
-
-    await ctx.reply('Оставьте телефон для связи 📱', contactKeyboard);
-    return ctx.wizard.next();
-  },
-
-  // Шаг 15: Финализация
-  async (ctx) => {
-    logStep(ctx, '15 - Контактная информация');
-
-    if (ctx.message.contact) {
-      ctx.wizard.state.phone = ctx.message.contact.phone_number;
-    } else if (ctx.message.text && ctx.message.text !== 'Пропустить') {
-      ctx.wizard.state.phone = ctx.message.text;
-    }
-
+    // Сбор данных и отправка
     const userData = ctx.wizard.state;
     const application = `
-🌟 *Новая заявка на подбор тура!* 🌟
-
-*Имя:* ${userData.name}
-${userData.phone ? `*Телефон:* ${userData.phone}\n` : ''}
-*Город вылета:* ${userData.city}
-*Направление:* ${userData.destination}
-*Период:* ${userData.travelPeriod || 'Не указано'}
-${
-  userData.departureDate
-    ? `*Даты:* ${userData.departureDate} - ${userData.returnDate}\n`
-    : ''
-}
-*Ночей:* ${userData.nights}
-*Состав группы:* ${userData.companions}
-${userData.childrenInfo ? `*Дети:* ${userData.childrenInfo}\n` : ''}
-*Размещение:* ${userData.accommodation}
-*Бюджет:* ${userData.budget}
+🌟 *НОВАЯ ЗАЯВКА НА ТУР* 🌟
+      
+📍 *Город вылета:* ${userData.departureCity}
+🌍 *Страна отдыха:* ${userData.destinationCountry}
+📅 *Дата вылета:* ${userData.departureDate}
+🌙 *Ночей:* ${userData.nights}
+👨‍👩‍👧 *Путешественники:* ${userData.adults} взрослых, ${userData.children} детей
+🏨 *Отель:* ${userData.hotelClass || '-'}, ${userData.hotelType || '-'}
+🍽️ *Питание:* ${userData.mealType || '-'}
+⭐ *Рейтинг:* ${userData.hotelRating || '-'}
+💰 *Бюджет:* от ${userData.budget.min} до ${userData.budget.max} руб.
     `;
 
     try {
@@ -322,32 +316,14 @@ ${userData.childrenInfo ? `*Дети:* ${userData.childrenInfo}\n` : ''}
         parse_mode: 'Markdown',
       });
 
-      let confirmation = `Спасибо, ${userData.name}! 🎉\nВаши данные получены!`;
-      confirmation += userData.phone
-        ? `\nМы свяжемся с вами по номеру ${userData.phone} в ближайшее время.`
-        : `\nНаш менеджер свяжется с вами в Telegram для уточнения деталей.`;
-
-      await ctx.reply(confirmation, Markup.removeKeyboard());
+      await ctx.reply(
+        `✅ Спасибо! Ваши данные отправлены менеджеру.\nОжидайте предложений в ближайшее время!`,
+        Markup.removeKeyboard()
+      );
     } catch (error) {
-      console.error('Ошибка отправки заявки:', error);
-      let errorMessage = '❌ Произошла ошибка при обработке заявки. ';
-
-      if (error.description && error.description.includes('chat not found')) {
-        errorMessage += 'Пожалуйста, проверьте настройки ADMIN_CHAT_ID в .env';
-      } else {
-        errorMessage += 'Попробуйте позже или свяжитесь с нами напрямую.';
-      }
-
-      await ctx.reply(errorMessage);
+      console.error('Ошибка отправки:', error);
+      await ctx.reply('❌ Ошибка отправки данных. Попробуйте позже.');
     }
-
-    console.log('=== ЗАВЕРШЕНИЕ ОПРОСА ===');
-    console.log(`Пользователь: ${ctx.from.first_name} (ID: ${ctx.from.id})`);
-    console.log(
-      'Финальное состояние:',
-      JSON.stringify(ctx.wizard.state, null, 2)
-    );
-    console.log('=========================');
 
     return ctx.scene.leave();
   }

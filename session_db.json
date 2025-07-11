@@ -3,7 +3,36 @@
     {
       "id": "369459962:369459962",
       "data": {
-        "__scenes": {}
+        "__scenes": {
+          "current": "TOUR_QUESTIONNAIRE",
+          "state": {
+            "city": "аапп",
+            "destination": "аааа",
+            "dateKeyboard": {
+              "reply_markup": {
+                "keyboard": [
+                  [
+                    "Конкретные даты"
+                  ],
+                  [
+                    "Июль-Август ☀️",
+                    "Сентябрь-Октябрь 🍂"
+                  ],
+                  [
+                    "Ноябрь-Март ❄️",
+                    "Апрель-Июнь 🌸"
+                  ]
+                ],
+                "one_time_keyboard": true,
+                "resize_keyboard": true
+              }
+            },
+            "travelPeriod": "Июль-Август ☀️",
+            "nights": "7-10 ночей",
+            "companions": "Один/одна"
+          },
+          "cursor": 11
+        }
       }
     },
     {

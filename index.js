@@ -34,9 +34,6 @@ bot.start((ctx) => {
   return ctx.scene.enter('TOUR_QUESTIONNAIRE');
 });
 
-// Команда запуска опросника
-bot.command('tour', (ctx) => ctx.scene.enter('TOUR_QUESTIONNAIRE'));
-
 // Команда сброса опроса
 bot.command('reset', async (ctx) => {
   // Выходим из текущей сцены
@@ -56,7 +53,7 @@ bot.command('reset', async (ctx) => {
 bot.on('text', (ctx) => {
   if (!ctx.scene.current) {
     ctx.reply(
-      'Для подбора тура нажмите /start или /tour',
+      'Для подбора тура отправте боту /start',
       Markup.keyboard([['/start']]).resize()
     );
   }
