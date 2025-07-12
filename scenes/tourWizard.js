@@ -1,5 +1,8 @@
 const { Scenes, Markup } = require('telegraf');
-
+const departureCities = require('../const/mapDeparture');
+const destinationCountries = require('../const/mapCountry');
+const processHotelData = require('../utils/sortHotel');
+const buildTourvisorUrl = require('../utils/makeUrl');
 // Функция для логирования
 const logStep = (ctx, stepName) => {
   const userId = ctx.from.id;
@@ -14,7 +17,6 @@ const logStep = (ctx, stepName) => {
   console.log(`Состояние:`, state);
   console.log('----------------------');
 };
-
 const tourQuestionnaire = new Scenes.WizardScene(
   'TOUR_QUESTIONNAIRE',
 
@@ -46,14 +48,39 @@ const tourQuestionnaire = new Scenes.WizardScene(
     }
 
     await ctx.reply('Отлично! Приступаем к опросу.', Markup.removeKeyboard());
-    await ctx.reply('1/11: Из какого города вылетаете? 🏙️');
+
+    // Создаем кнопки с городами
+    const cityButtons = Object.keys(departureCities);
+    await ctx.reply(
+      '1/11: Выберите город вылета из списка: 🏙️',
+      Markup.keyboard(cityButtons).resize().oneTime()
+    );
+
     return ctx.wizard.next();
   },
 
-  // Шаг 2: Город вылета
+  // Шаг 2: Город вылета (выбор из списка)
   async (ctx) => {
     logStep(ctx, '2 - Город вылета');
-    ctx.wizard.state.departureCity = ctx.message.text;
+    const selectedCity = ctx.message.text;
+
+    // Проверяем, есть ли город в списке
+    if (!departureCities.hasOwnProperty(selectedCity)) {
+      const cityButtons = Object.keys(departureCities);
+      await ctx.reply(
+        '❌ Пожалуйста, выберите город из списка:',
+        Markup.keyboard(cityButtons).resize().oneTime()
+      );
+      return;
+    }
+
+    // Сохраняем ID и название города
+    ctx.wizard.state.departureCity = {
+      id: departureCities[selectedCity],
+      name: selectedCity,
+    };
+
+    await ctx.reply(`✅ Выбрано: ${selectedCity}`, Markup.removeKeyboard());
     await ctx.reply('2/11: В какую страну хотите поехать? 🌍');
     return ctx.wizard.next();
   },
@@ -61,55 +88,138 @@ const tourQuestionnaire = new Scenes.WizardScene(
   // Шаг 3: Страна отдыха
   async (ctx) => {
     logStep(ctx, '3 - Страна отдыха');
-    ctx.wizard.state.destinationCountry = ctx.message.text;
+
+    // Создаем кнопки со странами
+    const countryButtons = Object.keys(destinationCountries);
+    const keyboard = Markup.keyboard(countryButtons).resize().oneTime();
+
+    // Проверяем, есть ли в сообщении текст, который есть в списке стран
+    const selectedCountry = ctx.message.text;
+
+    // Если сообщение не является строкой из списка стран, то просим выбрать
+    if (!destinationCountries.hasOwnProperty(selectedCountry)) {
+      // Отправляем сообщение с клавиатурой
+      await ctx.reply('2/11: Выберите страну из списка: 🌍', keyboard);
+      return; // Останавливаемся, чтобы дождаться правильного ввода
+    }
+
+    // Сохраняем ID и название страны
+    ctx.wizard.state.destinationCountry = {
+      id: destinationCountries[selectedCountry],
+      name: selectedCountry,
+    };
+
+    await ctx.reply(`✅ Выбрано: ${selectedCountry}`, Markup.removeKeyboard());
     await ctx.reply(
-      '3/11: 📅 Укажите дату вылета (формат ДД.ММ.ГГГГ):\nПример: 15.08.2024'
+      '3/11: 📅 Укажите дату вылета (формат ДД.ММ.ГГГГ) или период (ДД.ММ.ГГГГ - ДД.ММ.ГГГГ):\n' +
+        'Примеры:\n15.08.2024\n10.08.2024 - 20.08.2024'
     );
     return ctx.wizard.next();
   },
 
-  // Шаг 4: Дата вылета (валидация)
+  // Шаг 4: Дата вылета (конкретная дата или период)
   async (ctx) => {
     logStep(ctx, '4 - Дата вылета');
-    const input = ctx.message.text;
+    const input = ctx.message.text.trim();
 
-    // Валидация даты
-    if (!/^\d{2}\.\d{2}\.\d{4}$/.test(input)) {
+    // Проверка формата: конкретная дата или период
+    const singleDateRegex = /^\d{2}\.\d{2}\.\d{4}$/;
+    const periodRegex = /^\d{2}\.\d{2}\.\d{4}\s*-\s*\d{2}\.\d{2}\.\d{4}$/;
+
+    let startDate, endDate;
+
+    // Проверка на конкретную дату
+    if (singleDateRegex.test(input)) {
+      const [day, month, year] = input.split('.').map(Number);
+      const date = new Date(year, month - 1, day);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (
+        isNaN(date) ||
+        date.getDate() !== day ||
+        date.getMonth() !== month - 1 ||
+        date.getFullYear() !== year
+      ) {
+        await ctx.reply('❌ Некорректная дата. Проверьте правильность ввода:');
+        return;
+      }
+
+      if (date < today) {
+        await ctx.reply(
+          '❌ Дата вылета не может быть в прошлом. Введите будущую дату:'
+        );
+        return;
+      }
+
+      // Сохраняем как период с одинаковыми датами
+      startDate = input;
+      endDate = input;
+    }
+    // Проверка на период
+    else if (periodRegex.test(input)) {
+      const [startStr, endStr] = input.split('-').map((s) => s.trim());
+      const [startDay, startMonth, startYear] = startStr.split('.').map(Number);
+      const [endDay, endMonth, endYear] = endStr.split('.').map(Number);
+
+      startDate = new Date(startYear, startMonth - 1, startDay);
+      endDate = new Date(endYear, endMonth - 1, endDay);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Проверка валидности дат
+      if (
+        isNaN(startDate) ||
+        startDate.getDate() !== startDay ||
+        startDate.getMonth() !== startMonth - 1 ||
+        startDate.getFullYear() !== startYear ||
+        isNaN(endDate) ||
+        endDate.getDate() !== endDay ||
+        endDate.getMonth() !== endMonth - 1 ||
+        endDate.getFullYear() !== endYear
+      ) {
+        await ctx.reply(
+          '❌ Одна из дат некорректна. Проверьте правильность ввода:'
+        );
+        return;
+      }
+
+      if (startDate < today) {
+        await ctx.reply('❌ Начальная дата периода не может быть в прошлом:');
+        return;
+      }
+
+      if (startDate > endDate) {
+        await ctx.reply(
+          '❌ Конечная дата периода не может быть раньше начальной:'
+        );
+        return;
+      }
+
+      // Форматируем обратно в строки
+      startDate = startStr;
+      endDate = endStr;
+    }
+    // Неверный формат
+    else {
       await ctx.reply(
-        '❌ Неверный формат. Используйте ДД.ММ.ГГГГ:\nПример: 20.07.2024'
+        '❌ Неверный формат. Используйте:\n' +
+          '- Конкретную дату (ДД.ММ.ГГГГ)\n' +
+          '- Или период (ДД.ММ.ГГГГ - ДД.ММ.ГГГГ)\n\n' +
+          'Примеры:\n15.08.2024\n10.08.2024 - 20.08.2024'
       );
       return;
     }
 
-    const [day, month, year] = input.split('.').map(Number);
+    // Всегда сохраняем как период
+    ctx.wizard.state.departureDate = {
+      start: startDate,
+      end: endDate,
+    };
 
-    // Проверка валидности даты
-    const date = new Date(year, month - 1, day);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (
-      isNaN(date.getTime()) ||
-      date.getDate() !== day ||
-      date.getMonth() !== month - 1 ||
-      date.getFullYear() !== year
-    ) {
-      await ctx.reply('❌ Некорректная дата. Проверьте правильность ввода:');
-      return;
-    }
-
-    if (date < today) {
-      await ctx.reply(
-        '❌ Дата вылета не может быть в прошлом. Введите будущую дату:'
-      );
-      return;
-    }
-
-    ctx.wizard.state.departureDate = input;
     await ctx.reply('4/11: Сколько ночей планируете отдыхать? 🌙');
     return ctx.wizard.next();
   },
-
   // Шаг 5: Количество ночей
   async (ctx) => {
     logStep(ctx, '5 - Количество ночей');
@@ -140,10 +250,7 @@ const tourQuestionnaire = new Scenes.WizardScene(
     // Кнопки для детей
     await ctx.reply(
       '6/11: Сколько будет детей?',
-      Markup.keyboard([
-        ['0', '1', '2'],
-        ['3', 'Нет детей'],
-      ])
+      Markup.keyboard([['1', '2', '3'], ['Нет детей']])
         .resize()
         .oneTime()
     );
@@ -153,17 +260,60 @@ const tourQuestionnaire = new Scenes.WizardScene(
   // Шаг 7: Количество детей
   async (ctx) => {
     logStep(ctx, '7 - Дети');
+
+    // Обработка ввода возраста детей (если уже начат сбор возрастов)
+    if (ctx.wizard.state.childrenAges) {
+      const age = parseInt(ctx.message.text);
+
+      // Проверка корректности возраста
+      if (isNaN(age) || age < 0 || age > 15) {
+        await ctx.reply(
+          '❌ Возраст должен быть от 0 до 15 лет. Укажите снова:'
+        );
+        return;
+      }
+
+      // Сохранение возраста и обновление индекса
+      ctx.wizard.state.childrenAges.push(age);
+      ctx.wizard.state.currentChildIndex++;
+
+      // Проверка остались ли дети
+      if (ctx.wizard.state.currentChildIndex < ctx.wizard.state.children) {
+        await ctx.reply(
+          `Укажите возраст ребенка №${ctx.wizard.state.currentChildIndex + 1}:`,
+          Markup.removeKeyboard() // Скрыть предыдущую клавиатуру
+        );
+        return;
+      }
+
+      // Все возрасты получены - продолжаем
+      await ctx.reply('✅ Возраста детей сохранены');
+      delete ctx.wizard.state.currentChildIndex; // Очистка временных данных
+
+      // Показ кнопок для выбора класса отеля
+      await ctx.reply(
+        '7/11: Выберите класс отеля:',
+        Markup.keyboard([
+          ['3 ★', '4 ★'],
+          ['5 ★', 'Любой'],
+        ])
+          .resize()
+          .oneTime()
+      );
+      return ctx.wizard.next();
+    }
+
+    // Обработка начального ввода (количество детей)
     if (ctx.message.text === 'Нет детей') {
       ctx.wizard.state.children = 0;
     } else {
       const children = parseInt(ctx.message.text);
+
+      // Проверка корректности числа детей
       if (isNaN(children) || children < 0 || children > 10) {
         await ctx.reply(
           '❌ Выберите вариант из кнопок:',
-          Markup.keyboard([
-            ['0', '1', '2'],
-            ['3', 'Нет детей'],
-          ])
+          Markup.keyboard([['1', '2', '3'], ['Нет детей']])
             .resize()
             .oneTime()
         );
@@ -172,7 +322,19 @@ const tourQuestionnaire = new Scenes.WizardScene(
       ctx.wizard.state.children = children;
     }
 
-    // Кнопки для звезд отеля
+    // Если дети есть - начинаем сбор возрастов
+    if (ctx.wizard.state.children > 0) {
+      ctx.wizard.state.childrenAges = [];
+      ctx.wizard.state.currentChildIndex = 0;
+
+      await ctx.reply(
+        `Укажите возраст ребенка №1:`,
+        Markup.removeKeyboard() // Скрыть клавиатуру с количеством детей
+      );
+      return; // Остаемся в этом же шаге
+    }
+
+    // Если детей нет - сразу переходим к выбору отеля
     await ctx.reply(
       '7/11: Выберите класс отеля:',
       Markup.keyboard([
@@ -184,7 +346,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
     );
     return ctx.wizard.next();
   },
-
   // Шаг 8: Класс отеля
   async (ctx) => {
     logStep(ctx, '8 - Класс отеля');
@@ -362,9 +523,15 @@ const tourQuestionnaire = new Scenes.WizardScene(
     const application = `
 🌟 *НОВАЯ ЗАЯВКА НА ТУР* 🌟
       
-📍 *Город вылета:* ${userData.departureCity}
-🌍 *Страна отдыха:* ${userData.destinationCountry}
-📅 *Дата вылета:* ${userData.departureDate}
+📍 *Город вылета:* ${userData.departureCity.name} (ID: ${
+      userData.departureCity.id
+    })
+🌍 *Страна отдыха:* ${userData.destinationCountry.name} (ID: ${
+      userData.destinationCountry.id
+    })
+📅 *Дата вылеты:* ${userData.departureDate.start} - ${
+      userData.departureDate.end
+    }
 🌙 *Ночей:* ${userData.nights}
 👨‍👩‍👧 *Путешественники:* ${userData.adults} взрослых, ${
       userData.children || 0
@@ -374,7 +541,7 @@ const tourQuestionnaire = new Scenes.WizardScene(
 ⭐ *Рейтинг:* ${userData.hotelRating || '-'}
 💰 *Бюджет:* от ${userData.budget.min} до ${userData.budget.max} руб.
     `;
-
+    buildTourvisorUrl(userData);
     try {
       await ctx.telegram.sendMessage(process.env.ADMIN_CHAT_ID, application, {
         parse_mode: 'Markdown',
