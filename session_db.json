@@ -3,13 +3,56 @@
     {
       "id": "369459962:369459962",
       "data": {
-        "__scenes": {}
+        "__scenes": {
+          "current": "TOUR_QUESTIONNAIRE",
+          "state": {},
+          "cursor": 2
+        },
+        "stuckWatcher": {
+          "retries": {
+            "step_0": 0,
+            "step_1": 0
+          },
+          "lastStepTimes": {
+            "step_0": 1752690008921,
+            "step_1": 1752690011328
+          },
+          "waitingForChoice": false,
+          "stuckStep": null
+        }
       }
     },
     {
       "id": "565210224:565210224",
       "data": {
-        "__scenes": {}
+        "__scenes": {
+          "current": "TOUR_QUESTIONNAIRE",
+          "state": {},
+          "cursor": 1
+        },
+        "_stuckCounter": {
+          "step_1": 0
+        },
+        "_lastStep": 1,
+        "_lastValidStep": 1,
+        "_stuckData": {
+          "counters": {
+            "step_2": 0,
+            "step_3": 0,
+            "step_1": 0
+          },
+          "lastValidStep": 1
+        },
+        "stuckWatcher": {
+          "retries": {
+            "step_1": 0
+          },
+          "lastStepTimes": {
+            "step_1": 1752433852437
+          },
+          "waitingForChoice": true,
+          "stuckStep": 1
+        }
       }
     }
   ]

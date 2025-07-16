@@ -11,4 +11,20 @@ const logger = {
   },
 };
 
-module.exports = logger;
+const logStep = (ctx, stepName) => {
+  const userId = ctx.from.id;
+  const username = ctx.from.username
+    ? `@${ctx.from.username}`
+    : ctx.from.first_name;
+  const state = JSON.stringify(ctx.wizard.state, null, 2);
+
+  console.log(`\n--- Шаг ${stepName} ---`);
+  console.log(`Пользователь: ${username} (ID: ${userId})`);
+  console.log(
+    `Сообщение: ${ctx.message.text ? ctx.message.text : 'Нет текста'}`
+  );
+  console.log(`Состояние:`, state);
+  console.log('----------------------');
+};
+
+module.exports = { logger, logStep };

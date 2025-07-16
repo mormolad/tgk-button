@@ -3,7 +3,7 @@ const { Telegraf, Scenes, Markup, session } = require('telegraf');
 const { Stage } = Scenes;
 const LocalSession = require('telegraf-session-local');
 const { tourQuestionnaire } = require('./scenes/tourWizard');
-const logger = require('./utils/logger');
+const { logger } = require('./utils/logger');
 
 // Инициализация бота
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
@@ -33,20 +33,20 @@ bot.start((ctx) => {
   logger.log(`Пользователь ${ctx.from.id} запустил бота`, 'USER');
   return ctx.scene.enter('TOUR_QUESTIONNAIRE');
 });
-
 // Команда сброса опроса
 bot.command('reset', async (ctx) => {
-  // Выходим из текущей сцены
-  if (ctx.scene.current) {
-    await ctx.scene.leave();
+  try {
+    if (ctx.scene.current) {
+      await ctx.scene.leave();
+    }
+
+    ctx.session = {};
+    await ctx.reply('Опрос сброшен. Начинаем заново!', Markup.removeKeyboard());
+    return ctx.scene.enter('TOUR_QUESTIONNAIRE');
+  } catch (error) {
+    console.error('Reset error:', error);
+    await ctx.reply('Произошла ошибка при сбросе. Попробуйте ещё раз.');
   }
-
-  // Очищаем состояние
-  ctx.session = {};
-
-  // Запускаем сцену заново
-  await ctx.reply('Опрос сброшен. Начинаем заново!', Markup.removeKeyboard());
-  return ctx.scene.enter('TOUR_QUESTIONNAIRE');
 });
 
 // Обработчик текстовых сообщений (на случай, если пользователь заблудился)
