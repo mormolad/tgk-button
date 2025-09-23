@@ -14,39 +14,50 @@ const tourQuestionnaire = new Scenes.WizardScene(
     // Шаг 0: Приветствие
     async (ctx) => {
       logStep(ctx, '0 - Приветствие');
+      // показываем приветствие и кнопку
       await ctx.reply(
         `Привет, ${
           ctx.from.first_name || 'путешественник'
         }! 👋\nЯ помогу подобрать идеальный тур! Ответь на несколько вопросов:`,
-        Markup.keyboard([['Начать опрос ▶️']])
-          .resize()
-          .oneTime()
+        Markup.inlineKeyboard([
+          Markup.button.callback('Начать опрос ▶️', 'start_survey'),
+        ])
       );
+      // ВАЖНО: остаёмся на шаге 0 и ждём нажатие кнопки
       return ctx.wizard.next();
     },
+
     // Шаг 1: Проверка старта
     async (ctx) => {
       logStep(ctx, '1 - Проверка старта');
-      if (ctx.message.text !== 'Начать опрос ▶️') {
+
+      if (
+        ctx.updateType === 'callback_query' &&
+        ctx.callbackQuery.data === 'start_survey'
+      ) {
+        await ctx.answerCbQuery();
+
+        try {
+          await ctx.deleteMessage();
+        } catch (e) {
+          console.warn('Не удалось удалить сообщение:', e.message);
+        }
+
         await ctx.reply(
-          'Пожалуйста, нажмите кнопку "Начать опрос ▶️"',
-          Markup.keyboard([['Начать опрос ▶️']])
-            .resize()
-            .oneTime()
+          'Отлично! Приступаем к опросу.',
+          Markup.removeKeyboard()
         );
-        return;
+
+        const cityButtons = Object.keys(departureCities);
+        await ctx.reply(
+          '1/11: Выберите город вылета из списка: 🏙️',
+          Markup.keyboard(cityButtons).resize().oneTime()
+        );
+
+        return ctx.wizard.next();
       }
 
-      await ctx.reply('Отлично! Приступаем к опросу.', Markup.removeKeyboard());
-
-      // Создаем кнопки с городами
-      const cityButtons = Object.keys(departureCities);
-      await ctx.reply(
-        '1/11: Выберите город вылета из списка: 🏙️',
-        Markup.keyboard(cityButtons).resize().oneTime()
-      );
-
-      return ctx.wizard.next();
+      return; // если прилетело что-то другое
     },
     // Шаг 2: Город вылета (выбор из списка)
     async (ctx) => {
@@ -536,22 +547,28 @@ const tourQuestionnaire = new Scenes.WizardScene(
 ⭐ *Рейтинг:* ${userData.hotelRating || '-'}
 💰 *Бюджет:* от ${userData.budget.min} до ${userData.budget.max} руб.
     `;
+      await ctx.reply(
+        '✅ Спасибо! Ваши данные отправлены менеджеру.\nХотите заполнить новую заявку?',
+        Markup.removeKeyboard() // <-- передаём в reply
+      );
       buildTourvisorUrl(userData);
       try {
         await ctx.telegram.sendMessage(process.env.ADMIN_CHAT_ID, application, {
           parse_mode: 'Markdown',
         });
-
-        await ctx.reply(
-          `✅ Спасибо! Ваши данные отправлены менеджеру.\nОжидайте предложений в ближайшее время!`,
-          Markup.removeKeyboard()
-        );
       } catch (error) {
         console.error('Ошибка отправки:', error);
         await ctx.reply('❌ Ошибка отправки данных. Попробуйте позже.');
+        return { success: false };
       }
+      await ctx.reply(
+        `✅ Спасибо! Ваши данные отправлены менеджеру.\nХотите заполнить новую заявку?`,
+        Markup.inlineKeyboard([
+          Markup.button.callback('🔄 Начать заново', 'restart_survey'),
+        ])
+      );
 
-      return ctx.scene.leave();
+      return ctx.wizard.selectStep(0);
     },
   ])
 );

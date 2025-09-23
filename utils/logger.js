@@ -21,7 +21,13 @@ const logStep = (ctx, stepName) => {
   console.log(`\n--- Шаг ${stepName} ---`);
   console.log(`Пользователь: ${username} (ID: ${userId})`);
   console.log(
-    `Сообщение: ${ctx.message.text ? ctx.message.text : 'Нет текста'}`
+    `Сообщение: ${
+      !ctx.message
+        ? ctx.callbackQuery.data
+        : ctx.message.text
+        ? ctx.message.text
+        : 'Нет текста'
+    }`
   );
   console.log(`Состояние:`, state);
   console.log('----------------------');

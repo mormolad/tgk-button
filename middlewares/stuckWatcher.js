@@ -61,7 +61,7 @@ function withStuckWatcher(steps) {
 
           await ctx.reply(
             'Кажется, у вас возникли трудности. Хотите начать заново?',
-            Markup.keyboard([['/reset', 'Продолжить ▶️']])
+            Markup.keyboard([['🔄 Начать заново', 'Продолжить ▶️']])
               .resize()
               .oneTime()
           );
@@ -81,7 +81,7 @@ function withStuckWatcher(steps) {
             return step(ctx, next);
           }
 
-          if (answer === '/reset') {
+          if (answer === '🔄 Начать заново') {
             session.stuckWatcher = {
               retries: {},
               lastStepTimes: {},
