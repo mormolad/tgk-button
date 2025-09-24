@@ -556,21 +556,56 @@ const tourQuestionnaire = new Scenes.WizardScene(
 );
 
 
-
 tourQuestionnaire.use(async (ctx, next) => {
   logStep(ctx, `шаг - ${ctx.wizard.cursor}`);
+  
+  // Обработка команды /reset
   if (ctx.message?.text === '/reset') {
     ctx.wizard.cursor = 0;
+    // Сброс watcher при reset
+    if (ctx.session.stuckWatcher) {
+      ctx.session.stuckWatcher = {
+        retries: {},
+        lastStepTimes: {},
+        waitingForChoice: false,
+        stuckStep: null,
+      };
+    }
     await ctx.reply('🔄 Сцена перезапущена! Начинаем сначала.');
     return ctx.wizard.steps[0](ctx);
   }
-  await next(); // пустить дальше шаг
-});
 
-tourQuestionnaire.command('/reset', (ctx) => {
-  ctx.wizard.cursor = 0; // Сброс до первого шага
-  ctx.reply('Сцена перезапущена! Начинаем сначала.');
-  return ctx.wizard.steps[0](ctx); // Переход к первому шагу
+  // Проверка на зависание (добавленная логика)
+  if (ctx.session.stuckWatcher?.waitingForChoice && ctx.message) {
+    const watcher = ctx.session.stuckWatcher;
+    const answer = ctx.message.text;
+
+    if (answer === 'Продолжить ▶️') {
+      watcher.waitingForChoice = false;
+      const stepKey = `step_${ctx.wizard.cursor}`;
+      watcher.retries[stepKey] = 0;
+      watcher.lastStepTimes[stepKey] = Date.now();
+      // Продолжаем выполнение текущего шага
+      return next();
+    }
+
+    if (answer === '🔄 Начать заново') {
+      ctx.session.stuckWatcher = {
+        retries: {},
+        lastStepTimes: {},
+        waitingForChoice: false,
+        stuckStep: null,
+      };
+      await ctx.scene.leave();
+      return ctx.scene.enter('TOUR_QUESTIONNAIRE');
+    }
+
+    // Если введен некорректный ответ, ждем дальше
+    await ctx.reply('Пожалуйста, выберите один из предложенных вариантов:');
+    return;
+  }
+
+  await next();
 });
 
 module.exports = { tourQuestionnaire };
