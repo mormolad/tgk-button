@@ -455,7 +455,7 @@ const tourQuestionnaire = new Scenes.WizardScene(
       );
       return ctx.wizard.next();
     },
-    // Шаг 11: Рейтинг отеля
+    // Шаг 11: Рейтинг отеля + отправка заявки
     async (ctx) => {
       const validRatings = ['3.0+', '3.5+', '4.0+', '4.5+'];
 
@@ -473,41 +473,8 @@ const tourQuestionnaire = new Scenes.WizardScene(
       }
 
       ctx.wizard.state.hotelRating = ctx.message.text;
-      await ctx.reply(
-        '11/11: Укажите бюджет в рублях (формат: "от ДО"):\nПример: от 50000 до 150000'
-      );
-      return ctx.wizard.next();
-    },
-    // Шаг 12: Бюджет
-    async (ctx) => {
-      const budgetRegex = /^от\s*(\d+)\s*до\s*(\d+)$/i;
-      const match = ctx.message.text.match(budgetRegex);
 
-      if (!match) {
-        await ctx.reply(
-          '❌ Используйте формат: "от ДО"\nПример: от 50000 до 150000'
-        );
-        return { success: false };
-      }
-
-      const min = parseInt(match[1]);
-      const max = parseInt(match[2]);
-
-      if (isNaN(min) || isNaN(max)) {
-        await ctx.reply('❌ Введите числа в формате: от 50000 до 150000');
-        return { success: false };
-      }
-
-      if (min > max || min < 0 || max < 0) {
-        await ctx.reply(
-          '❌ Некорректный диапазон. Минимум должен быть меньше максимума'
-        );
-        return { success: false };
-      }
-
-      ctx.wizard.state.budget = { min, max };
-
-      // Сбор данных и отправка
+      // Сбор данных и отправка менеджеру
       const userData = ctx.wizard.state;
       const application = `
 🌟 *НОВАЯ ЗАЯВКА НА ТУР* 🌟
@@ -528,12 +495,8 @@ const tourQuestionnaire = new Scenes.WizardScene(
 🏨 *Отель:* ${userData.hotelClass || '-'}, ${userData.hotelType || '-'}
 🍽️ *Питание:* ${userData.mealType || '-'}
 ⭐ *Рейтинг:* ${userData.hotelRating || '-'}
-💰 *Бюджет:* от ${userData.budget.min} до ${userData.budget.max} руб.
-    `;
-      await ctx.reply(
-        '✅ Спасибо! Ваши данные отправлены менеджеру.\nХотите заполнить новую заявку?',
-        Markup.removeKeyboard() // <-- передаём в reply
-      );
+  `;
+
       try {
         await ctx.telegram.sendMessage(process.env.ADMIN_CHAT_ID, application, {
           parse_mode: 'Markdown',
@@ -543,6 +506,8 @@ const tourQuestionnaire = new Scenes.WizardScene(
         await ctx.reply('❌ Ошибка отправки данных. Попробуйте позже.');
         return { success: false };
       }
+
+      // Финальное сообщение пользователю
       await ctx.reply(
         `✅ Спасибо! Ваши данные отправлены менеджеру.\nХотите заполнить новую заявку?`,
         Markup.inlineKeyboard([
@@ -550,15 +515,14 @@ const tourQuestionnaire = new Scenes.WizardScene(
         ])
       );
 
-      return ctx.wizard.selectStep(0);
+      return ctx.wizard.selectStep(0); // перезапуск опроса
     },
   ])
 );
 
-
 tourQuestionnaire.use(async (ctx, next) => {
   logStep(ctx, `шаг - ${ctx.wizard.cursor}`);
-  
+
   // Обработка команды /reset
   if (ctx.message?.text === '/reset') {
     ctx.wizard.cursor = 0;
