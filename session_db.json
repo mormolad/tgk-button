@@ -13,56 +13,22 @@
             "destinationCountry": {
               "id": 46,
               "name": "Абхазия"
-            },
-            "departureDate": {
-              "start": "15.08.2026",
-              "end": "15.08.2026"
-            },
-            "nights": 1,
-            "adults": 1,
-            "children": 1,
-            "childrenAges": [
-              1,
-              1
-            ],
-            "hotelType": "Любой",
-            "mealType": "Полный пансион",
-            "hotelRating": "3.0+",
-            "budget": {
-              "min": 50000,
-              "max": 150000
             }
           },
-          "cursor": 2
+          "cursor": 4
         },
         "stuckWatcher": {
           "retries": {
             "step_0": 0,
             "step_1": 0,
             "step_2": 0,
-            "step_3": 0,
-            "step_4": 0,
-            "step_5": 0,
-            "step_6": 0,
-            "step_7": 0,
-            "step_9": 0,
-            "step_10": 0,
-            "step_11": 0,
-            "step_12": 0
+            "step_3": 0
           },
           "lastStepTimes": {
-            "step_0": 1758600102414,
-            "step_1": 1758600109756,
-            "step_2": 1758600078482,
-            "step_3": 1758600080057,
-            "step_4": 1758600087280,
-            "step_5": 1758600089000,
-            "step_6": 1758600089253,
-            "step_7": 1758600089828,
-            "step_9": 1758600091666,
-            "step_10": 1758600092736,
-            "step_11": 1758600093929,
-            "step_12": 1758600100428
+            "step_0": 1758682172729,
+            "step_1": 1758682178983,
+            "step_2": 1758682192501,
+            "step_3": 1758682197569
           },
           "waitingForChoice": false,
           "stuckStep": null

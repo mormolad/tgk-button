@@ -2,7 +2,6 @@ const { Scenes, Markup } = require('telegraf');
 const departureCities = require('../const/mapDeparture');
 const destinationCountries = require('../const/mapCountry');
 const processHotelData = require('../utils/sortHotel');
-const buildTourvisorUrl = require('../utils/makeUrl');
 const { logStep } = require('../utils/logger');
 const { withStuckWatcher } = require('../middlewares/stuckWatcher');
 
@@ -13,7 +12,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
   ...withStuckWatcher([
     // Шаг 0: Приветствие
     async (ctx) => {
-      logStep(ctx, '0 - Приветствие');
       // показываем приветствие и кнопку
       await ctx.reply(
         `Привет, ${
@@ -29,8 +27,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
 
     // Шаг 1: Проверка старта
     async (ctx) => {
-      logStep(ctx, '1 - Проверка старта');
-
       if (
         ctx.updateType === 'callback_query' &&
         ctx.callbackQuery.data === 'start_survey'
@@ -61,7 +57,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
     },
     // Шаг 2: Город вылета (выбор из списка)
     async (ctx) => {
-      logStep(ctx, '2 - Город вылета');
       const selectedCity = ctx.message.text;
 
       // Проверяем, есть ли город в списке
@@ -91,8 +86,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
     },
     // Шаг 3: Страна отдыха
     async (ctx) => {
-      logStep(ctx, '3 - Страна отдыха');
-
       // Проверяем, есть ли в сообщении текст, который есть в списке стран
       const selectedCountry = ctx.message.text;
       // Создаем кнопки со странами
@@ -125,7 +118,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
     },
     // Шаг 4: Дата вылета (конкретная дата или период)
     async (ctx) => {
-      logStep(ctx, '4 - Дата вылета');
       const input = ctx.message.text.trim();
 
       // Проверка формата: конкретная дата или период
@@ -232,7 +224,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
     },
     // Шаг 5: Количество ночей
     async (ctx) => {
-      logStep(ctx, '5 - Количество ночей');
       const nights = parseInt(ctx.message.text);
 
       if (isNaN(nights) || nights < 1 || nights > 365) {
@@ -246,7 +237,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
     },
     // Шаг 6: Количество взрослых
     async (ctx) => {
-      logStep(ctx, '6 - Взрослые');
       const adults = parseInt(ctx.message.text);
 
       if (isNaN(adults) || adults < 1 || adults > 20) {
@@ -267,8 +257,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
     },
     // Шаг 7: Количество детей
     async (ctx) => {
-      logStep(ctx, '7 - Дети');
-
       // Обработка ввода возраста детей (если уже начат сбор возрастов)
       if (ctx.wizard.state.childrenAges) {
         const age = parseInt(ctx.message.text);
@@ -358,7 +346,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
     },
     // Шаг 8: Класс отеля
     async (ctx) => {
-      logStep(ctx, '8 - Класс отеля');
       const validOptions = ['3 ★', '4 ★', '5 ★', 'Любой'];
 
       if (!validOptions.includes(ctx.message.text)) {
@@ -391,7 +378,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
     },
     // Шаг 9: Тип отеля
     async (ctx) => {
-      logStep(ctx, '9 - Тип отеля');
       const validTypes = [
         'Отель',
         'Пансионат',
@@ -433,7 +419,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
     },
     // Шаг 10: Тип питания
     async (ctx) => {
-      logStep(ctx, '10 - Тип питания');
       const validMeals = [
         'Только завтрак',
         'Завтрак и ужин',
@@ -472,7 +457,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
     },
     // Шаг 11: Рейтинг отеля
     async (ctx) => {
-      logStep(ctx, '11 - Рейтинг');
       const validRatings = ['3.0+', '3.5+', '4.0+', '4.5+'];
 
       if (!validRatings.includes(ctx.message.text)) {
@@ -496,7 +480,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
     },
     // Шаг 12: Бюджет
     async (ctx) => {
-      logStep(ctx, '12 - Бюджет');
       const budgetRegex = /^от\s*(\d+)\s*до\s*(\d+)$/i;
       const match = ctx.message.text.match(budgetRegex);
 
@@ -535,8 +518,8 @@ const tourQuestionnaire = new Scenes.WizardScene(
 🌍 *Страна отдыха:* ${userData.destinationCountry.name} (ID: ${
         userData.destinationCountry.id
       })
-📅 *Дата вылеты:* ${userData.departureDate.start} - ${
-        userData.departureDate.end
+📅 *Дата вылеты:* ${userData.departureDate?.start} - ${
+        userData.departureDate?.end
       }
 🌙 *Ночей:* ${userData.nights}
 👨‍👩‍👧 *Путешественники:* ${userData.adults} взрослых, ${
@@ -551,7 +534,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
         '✅ Спасибо! Ваши данные отправлены менеджеру.\nХотите заполнить новую заявку?',
         Markup.removeKeyboard() // <-- передаём в reply
       );
-      buildTourvisorUrl(userData);
       try {
         await ctx.telegram.sendMessage(process.env.ADMIN_CHAT_ID, application, {
           parse_mode: 'Markdown',
@@ -572,5 +554,23 @@ const tourQuestionnaire = new Scenes.WizardScene(
     },
   ])
 );
+
+
+
+tourQuestionnaire.use(async (ctx, next) => {
+  logStep(ctx, `шаг - ${ctx.wizard.cursor}`);
+  if (ctx.message?.text === '/reset') {
+    ctx.wizard.cursor = 0;
+    await ctx.reply('🔄 Сцена перезапущена! Начинаем сначала.');
+    return ctx.wizard.steps[0](ctx);
+  }
+  await next(); // пустить дальше шаг
+});
+
+tourQuestionnaire.command('/reset', (ctx) => {
+  ctx.wizard.cursor = 0; // Сброс до первого шага
+  ctx.reply('Сцена перезапущена! Начинаем сначала.');
+  return ctx.wizard.steps[0](ctx); // Переход к первому шагу
+});
 
 module.exports = { tourQuestionnaire };
