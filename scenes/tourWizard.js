@@ -4,6 +4,7 @@ const destinationCountries = require('../const/mapCountry');
 const processHotelData = require('../utils/sortHotel');
 const { logStep } = require('../utils/logger');
 const { withStuckWatcher } = require('../middlewares/stuckWatcher');
+const generateCalendar = require('../utils/generateCalendar');
 
 // Функция для логирования
 
@@ -24,7 +25,6 @@ const tourQuestionnaire = new Scenes.WizardScene(
       // ВАЖНО: остаёмся на шаге 0 и ждём нажатие кнопки
       return ctx.wizard.next();
     },
-
     // Шаг 1: Проверка старта
     async (ctx) => {
       if (
@@ -44,10 +44,29 @@ const tourQuestionnaire = new Scenes.WizardScene(
           Markup.removeKeyboard()
         );
 
-        const cityButtons = Object.keys(departureCities);
+        // Предустановленные города
+        const topCities = [
+          'Иркутск',
+          'Красноярск',
+          'Новосибирск',
+          'Москва',
+          'Екатеринбург',
+          'Сочи',
+          'Казань',
+        ];
+
+        const buttons = topCities.map((city) =>
+          Markup.button.callback(city, `city_${city}`)
+        );
+
+        // Добавляем кнопку "Показать все"
+        buttons.push(
+          Markup.button.callback('📋 Показать все города', 'show_all_cities')
+        );
+
         await ctx.reply(
           '1/11: Выберите город вылета из списка: 🏙️',
-          Markup.keyboard(cityButtons).resize().oneTime()
+          Markup.inlineKeyboard(buttons, { columns: 2 })
         );
 
         return ctx.wizard.next();
@@ -57,171 +76,188 @@ const tourQuestionnaire = new Scenes.WizardScene(
     },
     // Шаг 2: Город вылета (выбор из списка)
     async (ctx) => {
-      const selectedCity = ctx.message.text;
+      if (ctx.updateType === 'callback_query') {
+        const data = ctx.callbackQuery.data;
 
-      // Проверяем, есть ли город в списке
-      if (!departureCities.hasOwnProperty(selectedCity)) {
-        const cityButtons = Object.keys(departureCities);
-        await ctx.reply(
-          '❌ Пожалуйста, выберите город из списка:',
-          Markup.keyboard(cityButtons).resize().oneTime()
-        );
-        return { success: false };
+        // Показать все города
+        if (data === 'show_all_cities') {
+          await ctx.answerCbQuery();
+
+          const cityButtons = Object.keys(departureCities).map((city) =>
+            Markup.button.callback(city, `city_${city}`)
+          );
+
+          await ctx.editMessageText(
+            'Выберите город из списка: 🏙️',
+            Markup.inlineKeyboard(cityButtons, { columns: 2 })
+          );
+          return; // остаёмся в этом же шаге
+        }
+
+        // Выбор города
+        if (data.startsWith('city_')) {
+          const selectedCity = data.replace('city_', '');
+          await ctx.answerCbQuery();
+
+          ctx.wizard.state.departureCity = {
+            id: departureCities[selectedCity],
+            name: selectedCity,
+          };
+
+          await ctx.editMessageText(`✅ Выбрано: ${selectedCity}`);
+
+          // Топовые страны
+          const topCountries = [
+            'Турция',
+            'Египет',
+            'Таиланд',
+            'Вьетнам',
+            'Китай',
+            'Шри-Ланка',
+            'ОАЭ',
+            'Мальдивы',
+            'Абхазия',
+            'Индонезия',
+            'Индия',
+          ];
+
+          const countryButtons = topCountries.map((c) =>
+            Markup.button.callback(c, `country_${c}`)
+          );
+
+          // Добавляем кнопку "Показать все"
+          countryButtons.push(
+            Markup.button.callback(
+              '📋 Показать все страны',
+              'show_all_countries'
+            )
+          );
+
+          await ctx.reply(
+            '2/11: В какую страну хотите поехать? 🌍',
+            Markup.inlineKeyboard(countryButtons, { columns: 2 })
+          );
+
+          return ctx.wizard.next();
+        }
       }
 
-      // Сохраняем ID и название города
-      ctx.wizard.state.departureCity = {
-        id: departureCities[selectedCity],
-        name: selectedCity,
-      };
-      // Создаем кнопки со странами
-      const countryButtons = Object.keys(destinationCountries);
-
-      await ctx.reply(`✅ Выбрано: ${selectedCity}`, Markup.removeKeyboard());
-      await ctx.reply(
-        '2/11: В какую страну хотите поехать? 🌍',
-        Markup.keyboard(countryButtons).resize().oneTime()
-      );
-      return ctx.wizard.next();
+      return;
     },
-    // Шаг 3: Страна отдыха
+    // Шаг 3: Выбор страны
     async (ctx) => {
-      // Проверяем, есть ли в сообщении текст, который есть в списке стран
-      const selectedCountry = ctx.message.text;
-      // Создаем кнопки со странами
-      const countryButtons = Object.keys(destinationCountries);
+      if (ctx.updateType === 'callback_query') {
+        const data = ctx.callbackQuery.data;
+        await ctx.answerCbQuery(); // всегда отвечаем на callback
 
-      // Если сообщение не является строкой из списка стран, то просим выбрать
-      if (!destinationCountries.hasOwnProperty(selectedCountry)) {
-        await ctx.reply(
-          '❌ Пожалуйста, выберите страну из списка:',
-          Markup.keyboard(countryButtons).resize().oneTime()
-        );
-        return { success: false };
+        // Показать все страны
+        if (data === 'show_all_countries') {
+          const allCountryButtons = Object.keys(destinationCountries).map((c) =>
+            Markup.button.callback(c, `country_${c}`)
+          );
+
+          await ctx.editMessageText(
+            'Выберите страну из списка: 🌍',
+            Markup.inlineKeyboard(allCountryButtons, { columns: 2 })
+          );
+          return; // остаёмся в этом же шаге
+        }
+
+        // Выбор страны
+        if (data.startsWith('country_')) {
+          const selectedCountry = data.replace('country_', '').trim();
+
+          // Проверяем, есть ли страна в справочнике
+          if (!destinationCountries.hasOwnProperty(selectedCountry)) {
+            await ctx.reply('❌ Такой страны нет в списке. Попробуйте снова.');
+            return { success: false };
+          }
+
+          ctx.wizard.state.destinationCountry = {
+            id: destinationCountries[selectedCountry],
+            name: selectedCountry,
+          };
+
+          await ctx.editMessageText(
+            `✅ Выбрано направление: ${selectedCountry}`
+          );
+
+          // Переходим на следующий шаг (дата вылета)
+          await ctx.reply(
+            '3/11: Укажите дату вылета (ДД.ММ.ГГГГ) или период (ДД.ММ.ГГГГ - ДД.ММ.ГГГГ) 📅'
+          );
+
+          return ctx.wizard.next();
+        }
       }
 
-      // Сохраняем ID и название страны
-      ctx.wizard.state.destinationCountry = {
-        id: destinationCountries[selectedCountry],
-        name: selectedCountry,
-      };
-
-      await ctx.reply(
-        `✅ Выбрано: ${selectedCountry}`,
-        Markup.removeKeyboard()
-      );
-      await ctx.reply(
-        '3/11: 📅 Укажите дату вылета (формат ДД.ММ.ГГГГ) или период (ДД.ММ.ГГГГ - ДД.ММ.ГГГГ):\n' +
-          'Примеры:\n15.08.2024\n10.08.2024 - 20.08.2024'
-      );
-      return ctx.wizard.next();
+      return;
     },
-    // Шаг 4: Дата вылета (конкретная дата или период)
+    // Шаг 4: Дата вылета (сразу календарь)
     async (ctx) => {
-      const input = ctx.message.text.trim();
+      const today = new Date();
 
-      // Проверка формата: конкретная дата или период
-      const singleDateRegex = /^\d{2}\.\d{2}\.\d{4}$/;
-      const periodRegex = /^\d{2}\.\d{2}\.\d{4}\s*-\s*\d{2}\.\d{2}\.\d{4}$/;
+      // Если это callback (листание месяцев или выбор даты)
+      if (ctx.updateType === 'callback_query') {
+        const data = ctx.callbackQuery.data;
+        await ctx.answerCbQuery();
 
-      let startDate, endDate;
+        // Листание месяцев
+        if (data.startsWith('prev_') || data.startsWith('next_')) {
+          const [action, m, y] = data.split('_');
+          let month = parseInt(m);
+          let year = parseInt(y);
 
-      // Проверка на конкретную дату
-      if (singleDateRegex.test(input)) {
-        const [day, month, year] = input.split('.').map(Number);
-        const date = new Date(year, month - 1, day);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+          if (action === 'prev') {
+            month--;
+            if (month < 0) {
+              month = 11;
+              year--;
+            }
+          } else {
+            month++;
+            if (month > 11) {
+              month = 0;
+              year++;
+            }
+          }
 
-        if (
-          isNaN(date) ||
-          date.getDate() !== day ||
-          date.getMonth() !== month - 1 ||
-          date.getFullYear() !== year
-        ) {
-          await ctx.reply(
-            '❌ Некорректная дата. Проверьте правильность ввода:'
+          await ctx.editMessageReplyMarkup(
+            generateCalendar(year, month).reply_markup
           );
-          return { success: false };
+          return;
         }
 
-        if (date < today) {
-          await ctx.reply(
-            '❌ Дата вылета не может быть в прошлом. Введите будущую дату:'
-          );
-          return { success: false };
+        // Выбор даты
+        if (data.startsWith('pick_')) {
+          const [_, day, month, year] = data.split('_').map(Number);
+          const chosen = new Date(year, month, day);
+          const formatted = chosen.toLocaleDateString('ru-RU');
+
+          ctx.wizard.state.departureDate = { start: formatted, end: formatted };
+
+          await ctx.editMessageText(`✅ Дата вылета: ${formatted}`);
+          await ctx.reply('4/11: Сколько ночей планируете отдыхать? 🌙');
+
+          return ctx.wizard.next();
         }
 
-        // Сохраняем как период с одинаковыми датами
-        startDate = input;
-        endDate = input;
+        // Отмена
+        if (data === 'cancel_date') {
+          await ctx.editMessageText('❌ Выбор даты отменён');
+          return ctx.scene.leave();
+        }
       }
-      // Проверка на период
-      else if (periodRegex.test(input)) {
-        const [startStr, endStr] = input.split('-').map((s) => s.trim());
-        const [startDay, startMonth, startYear] = startStr
-          .split('.')
-          .map(Number);
-        const [endDay, endMonth, endYear] = endStr.split('.').map(Number);
 
-        startDate = new Date(startYear, startMonth - 1, startDay);
-        endDate = new Date(endYear, endMonth - 1, endDay);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        // Проверка валидности дат
-        if (
-          isNaN(startDate) ||
-          startDate.getDate() !== startDay ||
-          startDate.getMonth() !== startMonth - 1 ||
-          startDate.getFullYear() !== startYear ||
-          isNaN(endDate) ||
-          endDate.getDate() !== endDay ||
-          endDate.getMonth() !== endMonth - 1 ||
-          endDate.getFullYear() !== endYear
-        ) {
-          await ctx.reply(
-            '❌ Одна из дат некорректна. Проверьте правильность ввода:'
-          );
-          return { success: false };
-        }
-
-        if (startDate < today) {
-          await ctx.reply('❌ Начальная дата периода не может быть в прошлом:');
-          return { success: false };
-        }
-
-        if (startDate > endDate) {
-          await ctx.reply(
-            '❌ Конечная дата периода не может быть раньше начальной:'
-          );
-          return { success: false };
-        }
-
-        // Форматируем обратно в строки
-        startDate = startStr;
-        endDate = endStr;
-      }
-      // Неверный формат
-      else {
+      // Если это первый вход в шаг (текстовое сообщение) — сразу показываем календарь
+      if (!ctx.updateType || ctx.updateType === 'message') {
         await ctx.reply(
-          '❌ Неверный формат. Используйте:\n' +
-            '- Конкретную дату (ДД.ММ.ГГГГ)\n' +
-            '- Или период (ДД.ММ.ГГГГ - ДД.ММ.ГГГГ)\n\n' +
-            'Примеры:\n15.08.2024\n10.08.2024 - 20.08.2024'
+          '3/11: Выберите дату вылета 📅',
+          generateCalendar(today.getFullYear(), today.getMonth())
         );
-        return { success: false };
       }
-
-      // Всегда сохраняем как период
-      ctx.wizard.state.departureDate = {
-        start: startDate,
-        end: endDate,
-      };
-
-      await ctx.reply('4/11: Сколько ночей планируете отдыхать? 🌙');
-      return ctx.wizard.next();
     },
+
     // Шаг 5: Количество ночей
     async (ctx) => {
       const nights = parseInt(ctx.message.text);
