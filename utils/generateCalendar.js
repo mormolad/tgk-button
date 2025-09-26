@@ -34,7 +34,7 @@ function generateCalendar(year, month) {
 
   // Дни месяца
   for (let d = 1; d <= daysInMonth; d++) {
-    row.push(Markup.button.callback(String(d), `pick_${d}_${month}_${year}`));
+    row.push(Markup.button.callback(String(d), `date_${d}_${month}_${year}`));
     if (row.length === 7) {
       buttons.push(row);
       row = [];

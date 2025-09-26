@@ -58,7 +58,15 @@ bot.on('text', (ctx) => {
     );
   }
 });
-
+bot.on('callback_query', async (ctx, next) => {
+  console.log(
+    'GLOBAL CB:',
+    ctx.callbackQuery && ctx.callbackQuery.data,
+    'wizard:',
+    ctx.wizard && ctx.wizard.cursor
+  );
+  return next(); // передаём дальше в сцену/обработчик
+});
 // Запуск бота
 bot.launch().then(() => {
   logger.log('Бот успешно запущен');

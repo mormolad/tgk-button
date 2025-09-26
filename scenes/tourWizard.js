@@ -144,33 +144,30 @@ const tourQuestionnaire = new Scenes.WizardScene(
 
       return;
     },
-    // Шаг 3: Выбор страны
+    // Шаг 3: выбор страны
     async (ctx) => {
       if (ctx.updateType === 'callback_query') {
         const data = ctx.callbackQuery.data;
-        await ctx.answerCbQuery(); // всегда отвечаем на callback
+        await ctx.answerCbQuery();
 
-        // Показать все страны
         if (data === 'show_all_countries') {
           const allCountryButtons = Object.keys(destinationCountries).map((c) =>
             Markup.button.callback(c, `country_${c}`)
           );
 
           await ctx.editMessageText(
-            'Выберите страну из списка: 🌍',
+            'Выберите страну из полного списка: 🌍',
             Markup.inlineKeyboard(allCountryButtons, { columns: 2 })
           );
-          return; // остаёмся в этом же шаге
+          return; // остаёмся в шаге 3
         }
 
-        // Выбор страны
         if (data.startsWith('country_')) {
           const selectedCountry = data.replace('country_', '').trim();
 
-          // Проверяем, есть ли страна в справочнике
-          if (!destinationCountries.hasOwnProperty(selectedCountry)) {
+          if (!destinationCountries[selectedCountry]) {
             await ctx.reply('❌ Такой страны нет в списке. Попробуйте снова.');
-            return { success: false };
+            return;
           }
 
           ctx.wizard.state.destinationCountry = {
@@ -179,125 +176,126 @@ const tourQuestionnaire = new Scenes.WizardScene(
           };
 
           await ctx.editMessageText(
-            `✅ Выбрано направление: ${selectedCountry}`
+            `✅ Выбрано направление: ${selectedCountry}`,
+            { reply_markup: { inline_keyboard: [] } }
           );
 
-          // Переходим на следующий шаг (дата вылета)
+          // Показать календарь
+          const today = new Date();
           await ctx.reply(
-            '3/11: Укажите дату вылета (ДД.ММ.ГГГГ) или период (ДД.ММ.ГГГГ - ДД.ММ.ГГГГ) 📅'
+            '3/11: Выберите дату вылета 📅',
+            generateCalendar(today.getFullYear(), today.getMonth())
           );
 
-          return ctx.wizard.next();
+          return ctx.wizard.next(); // → шаг 4
         }
       }
-
-      return;
     },
-    // Шаг 4: Дата вылета (сразу календарь)
-    async (ctx) => {
-      const today = new Date();
 
-      // Если это callback (листание месяцев или выбор даты)
+    // Шаг 4: выбор даты
+    async (ctx) => {
       if (ctx.updateType === 'callback_query') {
         const data = ctx.callbackQuery.data;
         await ctx.answerCbQuery();
 
-        // Листание месяцев
-        if (data.startsWith('prev_') || data.startsWith('next_')) {
-          const [action, m, y] = data.split('_');
-          let month = parseInt(m);
-          let year = parseInt(y);
+        if (data.startsWith('date_')) {
+          const selectedDate = data.replace('date_', '');
+          ctx.wizard.state.departureDate = { start: selectedDate };
 
-          if (action === 'prev') {
-            month--;
-            if (month < 0) {
-              month = 11;
-              year--;
-            }
-          } else {
-            month++;
-            if (month > 11) {
-              month = 0;
-              year++;
-            }
-          }
+          await ctx.editMessageText(`✅ Дата вылета: ${selectedDate}`);
 
-          await ctx.editMessageReplyMarkup(
-            generateCalendar(year, month).reply_markup
+          const nightButtons = [
+            Markup.button.callback('6-8 🌙', 'nights_6-8'),
+            Markup.button.callback('9-11 🌙', 'nights_9-11'),
+            Markup.button.callback('12-14 🌙', 'nights_12-14'),
+            Markup.button.callback('15-21 🌙', 'nights_15-21'),
+          ];
+
+          await ctx.reply(
+            '4/11: Выберите количество ночей:',
+            Markup.inlineKeyboard(nightButtons, { columns: 2 })
           );
-          return;
+          return ctx.wizard.next(); // → шаг 5
         }
+      }
+    },
 
-        // Выбор даты
-        if (data.startsWith('pick_')) {
-          const [_, day, month, year] = data.split('_').map(Number);
-          const chosen = new Date(year, month, day);
-          const formatted = chosen.toLocaleDateString('ru-RU');
+    // Шаг 5: выбор количества ночей
+    async (ctx) => {
+      if (ctx.updateType === 'callback_query') {
+        const data = ctx.callbackQuery.data;
+        await ctx.answerCbQuery();
 
-          ctx.wizard.state.departureDate = { start: formatted, end: formatted };
+        if (data.startsWith('nights_')) {
+          const nightsRange = data.replace('nights_', '');
+          ctx.wizard.state.nights = nightsRange;
 
-          await ctx.editMessageText(`✅ Дата вылета: ${formatted}`);
-          await ctx.reply('4/11: Сколько ночей планируете отдыхать? 🌙');
+          await ctx.editMessageText(`✅ Количество ночей: ${nightsRange}`);
 
+          const adultButtons = [
+            Markup.button.callback('👤 1', 'adults_1'),
+            Markup.button.callback('👤 2', 'adults_2'),
+            Markup.button.callback('👤 3', 'adults_3'),
+            Markup.button.callback('👤 4', 'adults_4'),
+            Markup.button.callback('👤 5', 'adults_5'),
+            Markup.button.callback('👤 6', 'adults_6'),
+          ];
+
+          await ctx.reply(
+            '5/11: Выберите количество взрослых:',
+            Markup.inlineKeyboard(adultButtons, { columns: 3 })
+          );
+          return ctx.wizard.next(); // → шаг 6
+        }
+      }
+    },
+
+    // Шаг 6: количество взрослых
+    async (ctx) => {
+      if (ctx.updateType === 'callback_query') {
+        const data = ctx.callbackQuery.data;
+        await ctx.answerCbQuery();
+
+        if (data.startsWith('adults_')) {
+          const adults = parseInt(data.replace('adults_', ''));
+          ctx.wizard.state.adults = adults;
+
+          await ctx.editMessageText(`✅ Количество взрослых: ${adults}`);
+
+          const childButtons = [
+            Markup.button.callback('👶 1', 'children_1'),
+            Markup.button.callback('👶 2', 'children_2'),
+            Markup.button.callback('👶 3', 'children_3'),
+            Markup.button.callback('👶 4', 'children_4'),
+            Markup.button.callback('❌ Нет детей', 'children_0'),
+          ];
+
+          await ctx.reply(
+            '6/11: Сколько будет детей?',
+            Markup.inlineKeyboard(childButtons, { columns: 3 })
+          );
           return ctx.wizard.next();
         }
-
-        // Отмена
-        if (data === 'cancel_date') {
-          await ctx.editMessageText('❌ Выбор даты отменён');
-          return ctx.scene.leave();
-        }
-      }
-
-      // Если это первый вход в шаг (текстовое сообщение) — сразу показываем календарь
-      if (!ctx.updateType || ctx.updateType === 'message') {
-        await ctx.reply(
-          '3/11: Выберите дату вылета 📅',
-          generateCalendar(today.getFullYear(), today.getMonth())
-        );
       }
     },
 
-    // Шаг 5: Количество ночей
-    async (ctx) => {
-      const nights = parseInt(ctx.message.text);
-
-      if (isNaN(nights) || nights < 1 || nights > 365) {
-        await ctx.reply('❌ Введите корректное число (от 1 до 365):');
-        return { success: false };
-      }
-
-      ctx.wizard.state.nights = nights;
-      await ctx.reply('5/11: Укажите количество взрослых:');
-      return ctx.wizard.next();
-    },
-    // Шаг 6: Количество взрослых
-    async (ctx) => {
-      const adults = parseInt(ctx.message.text);
-
-      if (isNaN(adults) || adults < 1 || adults > 20) {
-        await ctx.reply('❌ Введите число от 1 до 20:');
-        return { success: false };
-      }
-
-      ctx.wizard.state.adults = adults;
-
-      // Кнопки для детей
-      await ctx.reply(
-        '6/11: Сколько будет детей?',
-        Markup.keyboard([['1', '2', '3'], ['Нет детей']])
-          .resize()
-          .oneTime()
-      );
-      return ctx.wizard.next();
-    },
     // Шаг 7: Количество детей
     async (ctx) => {
-      // Обработка ввода возраста детей (если уже начат сбор возрастов)
-      if (ctx.wizard.state.childrenAges) {
-        const age = parseInt(ctx.message.text);
+      let input;
 
-        // Проверка корректности возраста
+      if (ctx.updateType === 'callback_query') {
+        input = ctx.callbackQuery.data; // из inline-кнопки
+        await ctx.answerCbQuery();
+      } else if (ctx.message && ctx.message.text) {
+        input = ctx.message.text; // из reply-клавиатуры
+      } else {
+        return; // ничего не делаем
+      }
+
+      // Если мы уже собираем возраста
+      if (ctx.wizard.state.childrenAges) {
+        const age = parseInt(input);
+
         if (isNaN(age) || age < 0 || age > 15) {
           await ctx.reply(
             '❌ Возраст должен быть от 0 до 15 лет. Укажите снова:'
@@ -305,26 +303,22 @@ const tourQuestionnaire = new Scenes.WizardScene(
           return { success: false };
         }
 
-        // Сохранение возраста и обновление индекса
         ctx.wizard.state.childrenAges.push(age);
         ctx.wizard.state.currentChildIndex++;
 
-        // Проверка остались ли дети
         if (ctx.wizard.state.currentChildIndex < ctx.wizard.state.children) {
           await ctx.reply(
             `Укажите возраст ребенка №${
               ctx.wizard.state.currentChildIndex + 1
             }:`,
-            Markup.removeKeyboard() // Скрыть предыдущую клавиатуру
+            Markup.removeKeyboard()
           );
           return;
         }
 
-        // Все возрасты получены - продолжаем
         await ctx.reply('✅ Возраста детей сохранены');
-        delete ctx.wizard.state.currentChildIndex; // Очистка временных данных
+        delete ctx.wizard.state.currentChildIndex;
 
-        // Показ кнопок для выбора класса отеля
         await ctx.reply(
           '7/11: Выберите класс отеля:',
           Markup.keyboard([
@@ -337,38 +331,38 @@ const tourQuestionnaire = new Scenes.WizardScene(
         return ctx.wizard.next();
       }
 
-      // Обработка начального ввода (количество детей)
-      if (ctx.message.text === 'Нет детей') {
-        ctx.wizard.state.children = 0;
-      } else {
-        const children = parseInt(ctx.message.text);
+      // Начальный ввод количества детей
+      let children = 0;
 
-        // Проверка корректности числа детей
-        if (isNaN(children) || children < 0 || children > 10) {
-          await ctx.reply(
-            '❌ Выберите вариант из кнопок:',
-            Markup.keyboard([['1', '2', '3'], ['Нет детей']])
-              .resize()
-              .oneTime()
-          );
-          return { success: false };
-        }
-        ctx.wizard.state.children = children;
+      if (input.startsWith('children_')) {
+        children = parseInt(input.replace('children_', ''));
+      } else if (input === 'Нет детей') {
+        children = 0;
+      } else {
+        children = parseInt(input);
       }
 
-      // Если дети есть - начинаем сбор возрастов
-      if (ctx.wizard.state.children > 0) {
+      if (isNaN(children) || children < 0 || children > 10) {
+        await ctx.reply(
+          '❌ Выберите вариант из кнопок:',
+          Markup.keyboard([['1', '2', '3'], ['Нет детей']])
+            .resize()
+            .oneTime()
+        );
+        return { success: false };
+      }
+
+      ctx.wizard.state.children = children;
+
+      if (children > 0) {
         ctx.wizard.state.childrenAges = [];
         ctx.wizard.state.currentChildIndex = 0;
 
-        await ctx.reply(
-          `Укажите возраст ребенка №1:`,
-          Markup.removeKeyboard() // Скрыть клавиатуру с количеством детей
-        );
-        return; // Остаемся в этом же шаге
+        await ctx.reply(`Укажите возраст ребенка №1:`, Markup.removeKeyboard());
+        return; // остаёмся в этом шаге
       }
 
-      // Если детей нет - сразу переходим к выбору отеля
+      // Если детей нет → сразу к отелю
       await ctx.reply(
         '7/11: Выберите класс отеля:',
         Markup.keyboard([
@@ -380,11 +374,12 @@ const tourQuestionnaire = new Scenes.WizardScene(
       );
       return ctx.wizard.next();
     },
+
     // Шаг 8: Класс отеля
     async (ctx) => {
       const validOptions = ['3 ★', '4 ★', '5 ★', 'Любой'];
 
-      if (!validOptions.includes(ctx.message.text)) {
+      if (!validOptions.includes(ctx.callbackQuery.data)) {
         await ctx.reply(
           '❌ Выберите вариант из кнопок:',
           Markup.keyboard([
@@ -412,6 +407,7 @@ const tourQuestionnaire = new Scenes.WizardScene(
       );
       return ctx.wizard.next();
     },
+
     // Шаг 9: Тип отеля
     async (ctx) => {
       const validTypes = [
