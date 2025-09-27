@@ -23,7 +23,7 @@ const logStep = (ctx, stepName) => {
   console.log(
     `Сообщение:  ${
       !ctx.message
-        ? ctx.callbackQuery.data
+        ? `ctx.callbackQuery.data ___________________________________________ /n ${ctx.callbackQuery.data} `
         : ctx.message.text
         ? ctx.message.text
         : 'Нет текста'

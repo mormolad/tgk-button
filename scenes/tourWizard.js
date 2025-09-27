@@ -6,14 +6,20 @@ const { logStep } = require('../utils/logger');
 const { withStuckWatcher } = require('../middlewares/stuckWatcher');
 const generateCalendar = require('../utils/generateCalendar');
 
-// Функция для логирования
+// helper: клавиатура для возрастов 0..15 (4 столбца)
+const ageKeyboard = () =>
+  Markup.inlineKeyboard(
+    Array.from({ length: 16 }, (_, i) =>
+      Markup.button.callback(i.toString(), `age_${i}`)
+    ),
+    { columns: 4 }
+  );
 
 const tourQuestionnaire = new Scenes.WizardScene(
   'TOUR_QUESTIONNAIRE',
   ...withStuckWatcher([
     // Шаг 0: Приветствие
     async (ctx) => {
-      // показываем приветствие и кнопку
       await ctx.reply(
         `Привет, ${
           ctx.from.first_name || 'путешественник'
@@ -233,12 +239,11 @@ const tourQuestionnaire = new Scenes.WizardScene(
           await ctx.editMessageText(`✅ Количество ночей: ${nightsRange}`);
 
           const adultButtons = [
-            Markup.button.callback('👤 1', 'adults_1'),
-            Markup.button.callback('👤 2', 'adults_2'),
-            Markup.button.callback('👤 3', 'adults_3'),
-            Markup.button.callback('👤 4', 'adults_4'),
-            Markup.button.callback('👤 5', 'adults_5'),
-            Markup.button.callback('👤 6', 'adults_6'),
+            Markup.button.callback('👤', 'adults_1'),
+            Markup.button.callback('👤👤', 'adults_2'),
+            Markup.button.callback('👤👤👤', 'adults_3'),
+            Markup.button.callback('👤👤👤👤', 'adults_4'),
+            Markup.button.callback('👤👤👤👤👤', 'adults_5'),
           ];
 
           await ctx.reply(
@@ -263,11 +268,11 @@ const tourQuestionnaire = new Scenes.WizardScene(
           await ctx.editMessageText(`✅ Количество взрослых: ${adults}`);
 
           const childButtons = [
-            Markup.button.callback('👶 1', 'children_1'),
-            Markup.button.callback('👶 2', 'children_2'),
-            Markup.button.callback('👶 3', 'children_3'),
-            Markup.button.callback('👶 4', 'children_4'),
-            Markup.button.callback('❌ Нет детей', 'children_0'),
+            Markup.button.callback('👶', '1'),
+            Markup.button.callback('👶👶', '2'),
+            Markup.button.callback('👶👶👶', '3'),
+            Markup.button.callback('👶👶👶👶', '4'),
+            Markup.button.callback('❌ Нет детей', '0'),
           ];
 
           await ctx.reply(
@@ -279,232 +284,376 @@ const tourQuestionnaire = new Scenes.WizardScene(
       }
     },
 
-    // Шаг 7: Количество детей
+    // Шаг 7: спрашиваем количество детей (1 сообщение — inline)
     async (ctx) => {
-      let input;
-
+      // если пришёл callback с выбором — сохраняем и переходим
       if (ctx.updateType === 'callback_query') {
-        input = ctx.callbackQuery.data; // из inline-кнопки
+        const data = ctx.callbackQuery.data;
         await ctx.answerCbQuery();
-      } else if (ctx.message && ctx.message.text) {
-        input = ctx.message.text; // из reply-клавиатуры
-      } else {
-        return; // ничего не делаем
+
+        if (data) {
+          const children = parseInt(data.replace('children_', ''), 10) || 0;
+          ctx.wizard.state.children = children;
+          // редактируем исходное сообщение с кнопками в статус
+          try {
+            await ctx.editMessageText(`✅ Количество детей: ${children}`);
+          } catch (e) {
+            // если не получилось редактировать — просто отправим сообщение
+            await ctx.reply(`✅ Количество детей: ${children}`);
+          }
+          return ctx.wizard.next();
+        }
       }
 
-      // Если мы уже собираем возраста
-      if (ctx.wizard.state.childrenAges) {
-        const age = parseInt(input);
+      // fallback: если пользователь ввёл текст с числом
+      if (ctx.message && ctx.message.text) {
+        const txt = ctx.message.text.trim();
+        if (txt === 'Нет детей' || txt === '❌ Нет детей') {
+          ctx.wizard.state.children = 0;
+          await ctx.reply('✅ Количество детей: 0');
+          return ctx.wizard.next();
+        }
+        const n = parseInt(txt, 10);
+        if (!isNaN(n) && n >= 0 && n <= 10) {
+          ctx.wizard.state.children = n;
+          await ctx.reply(`✅ Количество детей: ${n}`);
+          return ctx.wizard.next();
+        }
+      }
 
-        if (isNaN(age) || age < 0 || age > 15) {
+      // показываем inline-кнопки (на вход — ожидаем callback)
+      const buttons = [
+        Markup.button.callback('❌ Нет детей', 'children_0'),
+        Markup.button.callback('👶', 'children_1'),
+        Markup.button.callback('👶👶', 'children_2'),
+        Markup.button.callback('👶👶👶', 'children_3'),
+        Markup.button.callback('👶👶👶👶', 'children_4'),
+      ];
+      await ctx.reply(
+        '7/11: Сколько будет детей?',
+        Markup.inlineKeyboard(buttons, { columns: 3 })
+      );
+    },
+
+    // Шаг 8: проверяем значение и (если нужно) собираем возраста по очереди через inline 0..15 (4 столбца)
+    async (ctx) => {
+      const children = Number(ctx.wizard.state.children) || 0;
+
+      // если ещё не начали сбор возрастов — и детей нет → пропускаем к отелю
+      if (!ctx.wizard.state.collectingChildrenAges) {
+        if (children === 0) {
+          // нет детей — сразу показываем клавиатуру для выбора класса отеля и далее next()
           await ctx.reply(
-            '❌ Возраст должен быть от 0 до 15 лет. Укажите снова:'
+            '7/11: Выберите класс отеля:',
+            Markup.keyboard([
+              ['3 ★', '4 ★'],
+              ['5 ★', 'Любой'],
+            ])
+              .resize()
+              .oneTime()
           );
-          return { success: false };
+          return ctx.wizard.next();
         }
 
-        ctx.wizard.state.childrenAges.push(age);
-        ctx.wizard.state.currentChildIndex++;
-
-        if (ctx.wizard.state.currentChildIndex < ctx.wizard.state.children) {
-          await ctx.reply(
-            `Укажите возраст ребенка №${
-              ctx.wizard.state.currentChildIndex + 1
-            }:`,
-            Markup.removeKeyboard()
-          );
-          return;
-        }
-
-        await ctx.reply('✅ Возраста детей сохранены');
-        delete ctx.wizard.state.currentChildIndex;
-
-        await ctx.reply(
-          '7/11: Выберите класс отеля:',
-          Markup.keyboard([
-            ['3 ★', '4 ★'],
-            ['5 ★', 'Любой'],
-          ])
-            .resize()
-            .oneTime()
-        );
-        return ctx.wizard.next();
-      }
-
-      // Начальный ввод количества детей
-      let children = 0;
-
-      if (input.startsWith('children_')) {
-        children = parseInt(input.replace('children_', ''));
-      } else if (input === 'Нет детей') {
-        children = 0;
-      } else {
-        children = parseInt(input);
-      }
-
-      if (isNaN(children) || children < 0 || children > 10) {
-        await ctx.reply(
-          '❌ Выберите вариант из кнопок:',
-          Markup.keyboard([['1', '2', '3'], ['Нет детей']])
-            .resize()
-            .oneTime()
-        );
-        return { success: false };
-      }
-
-      ctx.wizard.state.children = children;
-
-      if (children > 0) {
+        // есть дети — инициализируем сбор возрастов и спрашиваем возраст 1-го
         ctx.wizard.state.childrenAges = [];
         ctx.wizard.state.currentChildIndex = 0;
+        ctx.wizard.state.collectingChildrenAges = true;
 
-        await ctx.reply(`Укажите возраст ребенка №1:`, Markup.removeKeyboard());
-        return; // остаёмся в этом шаге
+        await ctx.reply(`Укажите возраст ребёнка №1:`, ageKeyboard());
+        return; // остаёмся в этом шаге до тех пор, пока все возраста не соберём
       }
 
-      // Если детей нет → сразу к отелю
+      // --- далее: мы в процессе сбора возрастов ---
+      // получаем input (callback или текст)
+      let input;
+      if (ctx.updateType === 'callback_query') {
+        input = ctx.callbackQuery.data;
+        await ctx.answerCbQuery();
+      } else if (ctx.message && ctx.message.text) {
+        input = ctx.message.text.trim();
+      } else {
+        return; // ничего не делаем если пришло что-то ещё
+      }
+
+      // парсим возраст (поддержка 'age_X' и текстового ввода)
+      let age = null;
+      if (typeof input === 'string' && input.startsWith('age_')) {
+        age = parseInt(input.replace('age_', ''), 10);
+      } else {
+        age = parseInt(input, 10);
+      }
+
+      if (isNaN(age) || age < 0 || age > 15) {
+        // неверный ввод — просим выбрать снова
+        await ctx.reply(
+          '❌ Возраст должен быть от 0 до 15. Выберите с кнопок:'
+        );
+        await ctx.reply(
+          `Укажите возраст ребёнка №${ctx.wizard.state.currentChildIndex + 1}:`,
+          ageKeyboard()
+        );
+        return;
+      }
+
+      // сохраняем возраст
+      const idx = ctx.wizard.state.currentChildIndex;
+      ctx.wizard.state.childrenAges.push(age);
+
+      // если callback — редактируем сообщение с кнопками, чтобы показать подтверждение выбора
+      if (ctx.updateType === 'callback_query') {
+        try {
+          await ctx.editMessageText(`✅ Возраст ребёнка №${idx + 1}: ${age}`);
+        } catch (e) {
+          // игнорируем ошибку редактирования (сообщение могло быть старым)
+        }
+      } else {
+        await ctx.reply(`✅ Возраст ребёнка №${idx + 1}: ${age}`);
+      }
+
+      ctx.wizard.state.currentChildIndex++;
+
+      // если остались дети → спрашиваем следующего
+      if (ctx.wizard.state.currentChildIndex < children) {
+        await ctx.reply(
+          `Укажите возраст ребёнка №${ctx.wizard.state.currentChildIndex + 1}:`,
+          ageKeyboard()
+        );
+        return;
+      }
+
+      // все возраста собраны
+      delete ctx.wizard.state.currentChildIndex;
+      delete ctx.wizard.state.collectingChildrenAges;
+
+      await ctx.reply('✅ Возраста детей сохранены');
+
+      // и дальше — класс отеля (переходим к следующему шагу)
       await ctx.reply(
         '7/11: Выберите класс отеля:',
-        Markup.keyboard([
-          ['3 ★', '4 ★'],
-          ['5 ★', 'Любой'],
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback('3 ★', 'hotel_3'),
+            Markup.button.callback('4 ★', 'hotel_4'),
+          ],
+          [
+            Markup.button.callback('5 ★', 'hotel_5'),
+            Markup.button.callback('Любой', 'hotel_any'),
+          ],
         ])
-          .resize()
-          .oneTime()
       );
       return ctx.wizard.next();
     },
 
-    // Шаг 8: Класс отеля
+    // Шаг 9: Класс отеля
     async (ctx) => {
-      const validOptions = ['3 ★', '4 ★', '5 ★', 'Любой'];
+      if (ctx.updateType !== 'callback_query') {
+        return; // ждем только inline-кнопки
+      }
 
-      if (!validOptions.includes(ctx.callbackQuery.data)) {
+      const data = ctx.callbackQuery.data;
+      await ctx.answerCbQuery();
+
+      // допустимые callback-значения
+      const validOptions = {
+        hotel_3: '3 ★',
+        hotel_4: '4 ★',
+        hotel_5: '5 ★',
+        hotel_any: 'Любой',
+      };
+
+      if (!validOptions[data]) {
         await ctx.reply(
           '❌ Выберите вариант из кнопок:',
-          Markup.keyboard([
-            ['3 ★', '4 ★'],
-            ['5 ★', 'Любой'],
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback('3 ★', 'hotel_3'),
+              Markup.button.callback('4 ★', 'hotel_4'),
+            ],
+            [
+              Markup.button.callback('5 ★', 'hotel_5'),
+              Markup.button.callback('Любой', 'hotel_any'),
+            ],
           ])
-            .resize()
-            .oneTime()
         );
         return { success: false };
       }
 
-      ctx.wizard.state.hotelClass = ctx.message.text;
+      // сохраняем выбор
+      ctx.wizard.state.hotelClass = validOptions[data];
 
-      // Кнопки для типа отеля
+      // Следующий шаг — выбор типа размещения (тоже inline)
+      await ctx.editMessageText(`✅ Класс отеля: ${validOptions[data]}`);
+
       await ctx.reply(
         '8/11: Выберите тип размещения:',
-        Markup.keyboard([
-          ['Отель', 'Пансионат', 'Гостевой дом'],
-          ['Апартаменты', 'Вилла', 'Хостел'],
-          ['Любой'],
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback('Отель', 'place_hotel'),
+            Markup.button.callback('Пансионат', 'place_pansion'),
+            Markup.button.callback('Гостевой дом', 'place_guest'),
+          ],
+          [
+            Markup.button.callback('Апартаменты', 'place_apart'),
+            Markup.button.callback('Вилла', 'place_villa'),
+            Markup.button.callback('Хостел', 'place_hostel'),
+          ],
+          [Markup.button.callback('Любой', 'place_any')],
         ])
-          .resize()
-          .oneTime()
       );
+
       return ctx.wizard.next();
     },
 
-    // Шаг 9: Тип отеля
+    // Шаг 10: Тип отеля
     async (ctx) => {
-      const validTypes = [
-        'Отель',
-        'Пансионат',
-        'Гостевой дом',
-        'Апартаменты',
-        'Вилла',
-        'Хостел',
-        'Любой',
-      ];
+      if (ctx.updateType !== 'callback_query') {
+        return; // ждём только inline-кнопки
+      }
 
-      if (!validTypes.includes(ctx.message.text)) {
+      const validOptions = {
+        place_hotel: 'Отель',
+        place_pansion: 'Пансионат',
+        place_guest: 'Гостевой дом',
+        place_apart: 'Апартаменты',
+        place_villa: 'Вилла',
+        place_hostel: 'Хостел',
+        place_any: 'Любой',
+      };
+
+      const data = ctx.callbackQuery.data;
+      await ctx.answerCbQuery();
+
+      if (!validOptions[data]) {
         await ctx.reply(
           '❌ Выберите вариант из кнопок:',
-          Markup.keyboard([
-            ['Отель', 'Пансионат', 'Гостевой дом'],
-            ['Апартаменты', 'Вилла', 'Хостел'],
-            ['Любой'],
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback('Отель', 'place_hotel'),
+              Markup.button.callback('Пансионат', 'place_pansion'),
+              Markup.button.callback('Гостевой дом', 'place_guest'),
+            ],
+            [
+              Markup.button.callback('Апартаменты', 'place_apart'),
+              Markup.button.callback('Вилла', 'place_villa'),
+              Markup.button.callback('Хостел', 'place_hostel'),
+            ],
+            [Markup.button.callback('Любой', 'place_any')],
           ])
-            .resize()
-            .oneTime()
         );
         return { success: false };
       }
 
-      ctx.wizard.state.hotelType = ctx.message.text;
+      ctx.wizard.state.hotelType = validOptions[data];
 
       // Кнопки для питания
+      await ctx.editMessageText(`✅ Тип размещения: ${validOptions[data]}`);
       await ctx.reply(
         '9/11: Выберите тип питания:',
-        Markup.keyboard([
-          ['Только завтрак', 'Завтрак и ужин'],
-          ['Полный пансион', 'Всё включено'],
-          ['Ультра всё включено'],
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback('Только завтрак', 'meal_bb'),
+            Markup.button.callback('Завтрак и ужин', 'meal_hb'),
+          ],
+          [
+            Markup.button.callback('Полный пансион', 'meal_fb'),
+            Markup.button.callback('Всё включено', 'meal_ai'),
+          ],
+          [Markup.button.callback('Ультра всё включено', 'meal_uai')],
         ])
-          .resize()
-          .oneTime()
       );
       return ctx.wizard.next();
     },
-    // Шаг 10: Тип питания
-    async (ctx) => {
-      const validMeals = [
-        'Только завтрак',
-        'Завтрак и ужин',
-        'Полный пансион',
-        'Всё включено',
-        'Ультра всё включено',
-      ];
 
-      if (!validMeals.includes(ctx.message.text)) {
+    // Шаг 11: Тип питания
+    async (ctx) => {
+      if (ctx.updateType !== 'callback_query') {
+        return;
+      }
+
+      const validMeals = {
+        meal_bb: 'Только завтрак',
+        meal_hb: 'Завтрак и ужин',
+        meal_fb: 'Полный пансион',
+        meal_ai: 'Всё включено',
+        meal_uai: 'Ультра всё включено',
+      };
+
+      const data = ctx.callbackQuery.data;
+      await ctx.answerCbQuery();
+
+      if (!validMeals[data]) {
         await ctx.reply(
           '❌ Выберите вариант из кнопок:',
-          Markup.keyboard([
-            ['Только завтрак', 'Завтрак и ужин'],
-            ['Полный пансион', 'Всё включено'],
-            ['Ультра всё включено'],
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback('Только завтрак', 'meal_bb'),
+              Markup.button.callback('Завтрак и ужин', 'meal_hb'),
+            ],
+            [
+              Markup.button.callback('Полный пансион', 'meal_fb'),
+              Markup.button.callback('Всё включено', 'meal_ai'),
+            ],
+            [Markup.button.callback('Ультра всё включено', 'meal_uai')],
           ])
-            .resize()
-            .oneTime()
         );
         return { success: false };
       }
 
-      ctx.wizard.state.mealType = ctx.message.text;
+      ctx.wizard.state.mealType = validMeals[data];
 
       // Кнопки для рейтинга
+      await ctx.editMessageText(`✅ Тип питания: ${validMeals[data]}`);
       await ctx.reply(
         '10/11: Минимальный рейтинг отеля:',
-        Markup.keyboard([
-          ['3.0+', '3.5+'],
-          ['4.0+', '4.5+'],
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback('3.0+', 'rating_3.0'),
+            Markup.button.callback('3.5+', 'rating_3.5'),
+          ],
+          [
+            Markup.button.callback('4.0+', 'rating_4.0'),
+            Markup.button.callback('4.5+', 'rating_4.5'),
+          ],
         ])
-          .resize()
-          .oneTime()
       );
       return ctx.wizard.next();
     },
-    // Шаг 11: Рейтинг отеля + отправка заявки
-    async (ctx) => {
-      const validRatings = ['3.0+', '3.5+', '4.0+', '4.5+'];
 
-      if (!validRatings.includes(ctx.message.text)) {
+    // Шаг 12: Рейтинг отеля + отправка заявки
+    async (ctx) => {
+      if (ctx.updateType !== 'callback_query') {
+        return;
+      }
+
+      const validRatings = {
+        'rating_3.0': '3.0+',
+        'rating_3.5': '3.5+',
+        'rating_4.0': '4.0+',
+        'rating_4.5': '4.5+',
+      };
+
+      const data = ctx.callbackQuery.data;
+      await ctx.answerCbQuery();
+
+      if (!validRatings[data]) {
         await ctx.reply(
           '❌ Выберите вариант из кнопок:',
-          Markup.keyboard([
-            ['3.0+', '3.5+'],
-            ['4.0+', '4.5+'],
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback('3.0+', 'rating_3.0'),
+              Markup.button.callback('3.5+', 'rating_3.5'),
+            ],
+            [
+              Markup.button.callback('4.0+', 'rating_4.0'),
+              Markup.button.callback('4.5+', 'rating_4.5'),
+            ],
           ])
-            .resize()
-            .oneTime()
         );
         return { success: false };
       }
 
-      ctx.wizard.state.hotelRating = ctx.message.text;
+      ctx.wizard.state.hotelRating = validRatings[data];
 
       // Сбор данных и отправка менеджеру
       const userData = ctx.wizard.state;
@@ -540,6 +689,9 @@ const tourQuestionnaire = new Scenes.WizardScene(
       }
 
       // Финальное сообщение пользователю
+      await ctx.editMessageText(
+        `✅ Минимальный рейтинг отеля: ${validRatings[data]}`
+      );
       await ctx.reply(
         `✅ Спасибо! Ваши данные отправлены менеджеру.\nХотите заполнить новую заявку?`,
         Markup.inlineKeyboard([
@@ -568,7 +720,7 @@ tourQuestionnaire.use(async (ctx, next) => {
       };
     }
     await ctx.reply('🔄 Сцена перезапущена! Начинаем сначала.');
-    return ctx.wizard.steps[0](ctx);
+    return ctx.scene.reenter();
   }
 
   // Проверка на зависание (добавленная логика)
@@ -602,6 +754,17 @@ tourQuestionnaire.use(async (ctx, next) => {
   }
 
   await next();
+});
+
+// каждый раз при входе в сцену сбрасываем состояние
+tourQuestionnaire.enter((ctx) => {
+  ctx.wizard.state = {};
+  if (ctx.session && ctx.session.__scenes) {
+    ctx.session.__scenes.state = {};
+  }
+  // Перезапускаем с шага 0
+  ctx.wizard.cursor = 0;
+  return ctx.wizard.steps[0](ctx);
 });
 
 module.exports = { tourQuestionnaire };

@@ -11,21 +11,24 @@
               "name": "Иркутск"
             },
             "destinationCountry": {
-              "id": 46,
-              "name": "Абхазия"
+              "id": 13,
+              "name": "Китай"
             },
             "departureDate": {
-              "start": "30_8_2025"
+              "start": "30_9_2025"
             },
             "nights": "6-8",
             "adults": 1,
             "children": 1,
             "childrenAges": [
-              1,
-              12
-            ]
+              0
+            ],
+            "hotelClass": "3 ★",
+            "hotelType": "Апартаменты",
+            "mealType": "Полный пансион",
+            "hotelRating": "3.0+"
           },
-          "cursor": 8
+          "cursor": 0
         },
         "stuckWatcher": {
           "retries": {
@@ -36,20 +39,30 @@
             "step_4": 0,
             "step_5": 0,
             "step_6": 0,
-            "step_7": 0
+            "step_7": 0,
+            "step_8": 0,
+            "step_9": 0,
+            "step_10": 0,
+            "step_11": 0,
+            "step_12": 0
           },
           "lastStepTimes": {
-            "step_0": 1758862275194,
-            "step_1": 1758862276983,
-            "step_2": 1758862278758,
-            "step_3": 1758862280608,
-            "step_4": 1758862282343,
-            "step_5": 1758862283776,
-            "step_6": 1758862285352,
-            "step_7": 1758862301119
+            "step_0": 1758982182811,
+            "step_1": 1758982189866,
+            "step_2": 1758982204665,
+            "step_3": 1758982250916,
+            "step_4": 1758982258290,
+            "step_5": 1758982267307,
+            "step_6": 1758982272524,
+            "step_7": 1758982274177,
+            "step_8": 1758982278986,
+            "step_9": 1758982282221,
+            "step_10": 1758982285998,
+            "step_11": 1758982306384,
+            "step_12": 1758982328582
           },
-          "waitingForChoice": false,
-          "stuckStep": null
+          "waitingForChoice": true,
+          "stuckStep": 0
         }
       }
     },
