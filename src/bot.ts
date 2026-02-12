@@ -3,7 +3,12 @@ import { Telegraf, Markup, session, Scenes } from 'telegraf';
 import type { Context } from 'telegraf';
 import { createSurveyScene } from './scenes/survey.js';
 
-const token = '7988677028:AAENoK3vloZjettOA0A_Q2Gird9T47HEyxE';
+const token = process.env.TELEGRAM_BOT_TOKEN;
+if (!token) {
+  throw new Error(
+    'TELEGRAM_BOT_TOKEN не задан. Укажите его в .env или переменной окружения.'
+  );
+}
 
 const bot = new Telegraf(token);
 const stage = new Scenes.Stage([createSurveyScene()]);

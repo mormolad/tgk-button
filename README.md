@@ -1,29 +1,54 @@
-Setup
+# TGK Button
 
-1. Create a bot via @BotFather and get the token.
-2. Create a .env file in project root:
+Telegram-бот для тур‑агентства: собирает заявку в формате опроса, помогает
+пользователю пройти сценарий и отправляет результат администратору.
+
+## Возможности
+
+- Стартовый экран с кнопкой «Начать»
+- Многошаговый опрос (Wizard Scene)
+- Выбор вариантов через inline‑кнопки
+- Выбор даты через inline‑календарь
+- Сбор возрастов детей при необходимости
+- Подсказки и помощь при простое/ошибках
+- Отправка заявки администратору
+
+## Быстрый старт
+
+1. Создайте бота через @BotFather и получите токен.
+2. Создайте файл `.env` в корне проекта:
 
 ```
 TELEGRAM_BOT_TOKEN=123456:ABC...
 ```
 
-3. Install dependencies and run:
+3. Установите зависимости и запустите в dev‑режиме:
 
 ```
 npm install
 npm run dev
 ```
 
-What it does
+## Конфигурация
 
-- Sends greeting with inline "Начать" button on /start.
-- Runs a survey defined in src/questions/questions.ts.
-- Supports multiple choice and date via inline calendar.
+- `src/config.ts`
+  - `USERNAME_TELEGRAM` — контакт менеджера
+  - `TELEGRAM_ADMIN_ID` — chat id администратора (0 = отключено)
+- `src/questions/questions.ts` — список вопросов и логика сценария
+- `src/constants/mapDeparture.ts` — города вылета
+- `src/constants/mapCountry.ts` — страны отдыха
 
-Files
+## Скрипты
 
-- src/bot.ts — bot wiring and handlers
-- src/questions/types.ts — question types
-- src/questions/questions.ts — survey list
-- src/keyboard/calendar.ts — inline calendar keyboard
-- src/state/session.ts — in-memory survey state
+- `npm run dev` — запуск бота в dev‑режиме (tsx)
+- `npm run build` — сборка TypeScript
+- `npm start` — запуск собранной версии
+
+## Структура проекта
+
+- `src/bot.ts` — инициализация бота и базовые команды
+- `src/scenes/survey.ts` — сценарий опроса и обработчики
+- `src/questions/*` — типы вопросов и сценарий
+- `src/keyboards/*` — inline‑клавиатуры (календарь, возраст и т.п.)
+- `src/constants/*` — справочники городов и стран
+
